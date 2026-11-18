@@ -131,6 +131,26 @@ private fun NotifnixApp(context: MainActivity, database: ScenarioDatabase) {
     var editingId by remember { mutableStateOf<String?>(null) }
     val tabs = listOf("Call", "Messages", "Alerts", "Library", "Settings")
     val palette = if (darkMode) darkColorScheme(primary = Color(0xFFB8AEFF), background = Color(0xFF101522), surface = Color(0xFF1A2232)) else lightColorScheme(primary = Violet, background = Canvas)
+    LaunchedEffect(Unit) {
+        if (!prefs.getBoolean("room_migrated", false)) {
+            runCatching {
+                val raw = prefs.getString("scenarios", "[]") ?: "[]"
+                val legacy = org.json.JSONArray(raw)
+                val migrated = (0 until legacy.length()).map { index ->
+                    val row = legacy.getJSONObject(index)
+                    ScenarioEntity(
+                        id = row.optLong("id", System.currentTimeMillis() + index).toString(),
+                        type = row.optString("type", "MESSAGE"),
+                        title = row.optString("title", "Imported scenario"),
+                        detail = row.optString("detail", ""),
+                        createdAt = row.optLong("id", System.currentTimeMillis() + index)
+                    )
+                }
+                if (migrated.isNotEmpty()) database.scenarios().upsertAll(migrated)
+            }
+            prefs.edit().putBoolean("room_migrated", true).apply()
+        }
+    }
 
     fun save(type: String, title: String, detail: String) {
         val existing = history.firstOrNull { it.id == editingId }
