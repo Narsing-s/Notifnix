@@ -35,6 +35,7 @@ import androidx.compose.material.icons.filled.PhoneInTalk
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -52,7 +53,6 @@ import androidx.work.ExistingWorkPolicy
 import androidx.work.WorkInfo
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
-import androidx.work.getWorkInfosByTagFlow
 import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
 
@@ -177,6 +177,7 @@ class MainActivity : FragmentActivity() {
                     .addTag("scenario_" + item.id)
                     .setInitialDelay(delay, TimeUnit.MILLISECONDS)
                     .build()
+                lifecycleScope.launch { database.scenarios().upsert(item.copy(scheduledAt = date.timeInMillis)) }
                 WorkManager.getInstance(this).enqueueUniqueWork(
                     "notifnix_" + item.id, ExistingWorkPolicy.REPLACE, request
                 )
@@ -200,8 +201,7 @@ class MainActivity : FragmentActivity() {
 private fun NotifnixApp(context: MainActivity, database: ScenarioDatabase) {
     val scope = rememberCoroutineScope()
     val history by database.scenarios().observeAll().collectAsStateWithLifecycle(initialValue = emptyList())
-    val scheduledFlow = remember { WorkManager.getInstance(context).getWorkInfosByTagFlow("notifnix_scheduled") }
-    val scheduled by scheduledFlow.collectAsStateWithLifecycle(initialValue = emptyList())
+    val scheduled by WorkManager.getInstance(context).getWorkInfosByTagLiveData("notifnix_scheduled").observeAsState(initial = emptyList())
     val prefs = remember { context.getSharedPreferences(PREFS, Context.MODE_PRIVATE) }
     var selected by remember { mutableIntStateOf(0) }
     var caller by remember { mutableStateOf("Alex Morgan") }
@@ -370,32 +370,30 @@ private fun NotifnixApp(context: MainActivity, database: ScenarioDatabase) {
                     }
                     4 -> {
                         SectionTitle("Scheduled simulations", "Manage local reminders created from your scenario library.")
-                        val upcoming = scheduled.sortedBy { it.inputData.getLong("scheduledAt", 0L) }
+                        val upcoming = scheduled.mapNotNull { work ->
+                            val scenarioId = work.tags.firstOrNull { it.startsWith("scenario_") }?.removePrefix("scenario_")
+                            val scenario = history.firstOrNull { it.id == scenarioId }
+                            if (scenario == null) null else work to scenario
+                        }.sortedBy { it.second.scheduledAt ?: Long.MAX_VALUE }
                         if (upcoming.isEmpty()) {
                             EmptyState()
                         } else {
                             LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 18.dp)) {
-                                items(upcoming, key = { it.id.toString() }) { work ->
-                                    val title = work.inputData.getString("title") ?: "Scheduled simulation"
-                                    val detail = work.inputData.getString("detail") ?: ""
-                                    val at = work.inputData.getLong("scheduledAt", 0L)
+                                items(upcoming, key = { it.first.id.toString() }) { (work, scenario) ->
                                     val canCancel = work.state == WorkInfo.State.ENQUEUED || work.state == WorkInfo.State.BLOCKED
                                     Surface(color = palette.surface, shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
                                         Column(Modifier.padding(14.dp)) {
                                             Text("SIMULATED · " + work.state.name, color = Violet, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
-                                            Text(title, fontWeight = FontWeight.SemiBold)
-                                            Text(detail, style = MaterialTheme.typography.bodySmall)
-                                            if (at > 0L) Text(java.text.DateFormat.getDateTimeInstance().format(java.util.Date(at)), style = MaterialTheme.typography.labelSmall)
+                                            Text(scenario.title, fontWeight = FontWeight.SemiBold)
+                                            Text(scenario.detail, style = MaterialTheme.typography.bodySmall)
+                                            scenario.scheduledAt?.let { at ->
+                                                Text(java.text.DateFormat.getDateTimeInstance().format(java.util.Date(at)), style = MaterialTheme.typography.labelSmall)
+                                            }
                                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                                TextButton(onClick = {
-                                                    scope.launch {
-                                                        val id = work.inputData.getString("scenarioId")
-                                                        val item = id?.let { database.scenarios().find(it) }
-                                                        if (item != null) context.schedule(item)
-                                                        else Toast.makeText(context, "Original scenario is no longer available", Toast.LENGTH_SHORT).show()
-                                                    }
-                                                }) { Text("Reschedule") }
-                                                if (canCancel) TextButton(onClick = { WorkManager.getInstance(context).cancelWorkById(work.id) }) { Text("Cancel") }
+                                                TextButton(onClick = { context.schedule(scenario) }) { Text("Reschedule") }
+                                                if (canCancel) TextButton(onClick = {
+                                                    WorkManager.getInstance(context).cancelWorkById(work.id)
+                                                }) { Text("Cancel") }
                                             }
                                         }
                                     }
