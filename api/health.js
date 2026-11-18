@@ -1,4 +1,4 @@
-const { json } = require("./_lib/twilio");
+const { json } = require("../lib/twilio");
 
 module.exports = function handler(req, res) {
   if (req.method !== "GET") return json(res, 405, { error: "Method not allowed" });
