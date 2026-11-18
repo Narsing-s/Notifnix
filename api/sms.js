@@ -16,6 +16,12 @@ module.exports = async function handler(req, res) {
     const message = await twilioPost("Messages.json", { To: to, Body: body.trim(), ...sender });
     return json(res, 202, { accepted: true, provider: "twilio", sid: message.sid, status: message.status || "queued", note: "Accepted by Twilio; delivery is not yet confirmed." });
   } catch (error) {
-    return json(res, error.status || 502, { error: error.message || "SMS provider request failed." });
+    const trialBlocked = String(error.providerCode || "") === "21608";
+    return json(res, error.status || 502, {
+      error: trialBlocked
+        ? "Twilio trial restriction (21608): this destination is not verified on your trial account. To message unverified recipients, upgrade the Twilio account, complete required business/profile checks, enable the destination country, and use an approved sender. Notifnix cannot bypass this provider restriction."
+        : error.message || "SMS provider request failed.",
+      providerCode: error.providerCode || null
+    });
   }
 };
