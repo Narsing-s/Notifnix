@@ -56,6 +56,12 @@ import androidx.work.WorkInfo
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.net.HttpURLConnection
+import java.net.URL
+import org.json.JSONObject
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import java.util.concurrent.TimeUnit
 
 private val Ink = Color(0xFF172033)
@@ -63,6 +69,29 @@ private val Violet = Color(0xFF6657D9)
 private val Canvas = Color(0xFFF5F6FB)
 private const val CHANNEL_ID = "notifnix_simulations"
 private const val PREFS = "notifnix_local"
+
+private suspend fun notifnixCloudRequest(baseUrl: String, token: String, path: String, payload: JSONObject? = null): JSONObject = withContext(Dispatchers.IO) {
+    val root = baseUrl.trim().trimEnd('/')
+    require(root.startsWith("https://")) { "Backend URL must start with https://" }
+    val connection = (URL(root + path).openConnection() as HttpURLConnection).apply {
+        requestMethod = if (payload == null) "GET" else "POST"
+        connectTimeout = 15000
+        readTimeout = 20000
+        setRequestProperty("Accept", "application/json")
+        if (token.isNotBlank()) setRequestProperty("Authorization", "Bearer $token")
+        if (payload != null) { doOutput = true; setRequestProperty("Content-Type", "application/json") }
+    }
+    try {
+        if (payload != null) connection.outputStream.use { it.write(payload.toString().toByteArray(Charsets.UTF_8)) }
+        val code = connection.responseCode
+        val stream = if (code in 200..299) connection.inputStream else connection.errorStream
+        val raw = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+        val result = if (raw.isBlank()) JSONObject() else JSONObject(raw)
+        if (code !in 200..299) throw IllegalStateException(result.optString("error", "Backend request failed ($code)"))
+        result
+    } finally { connection.disconnect() }
+}
+
 
 class MainActivity : FragmentActivity() {
     private val askNotifications = registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
@@ -292,6 +321,10 @@ private fun NotifnixApp(context: MainActivity, database: ScenarioDatabase) {
     var pinInput by remember { mutableStateOf("") }
     var pinDialog by remember { mutableStateOf(false) }
     var snackbar by remember { mutableStateOf("") }
+    var cloudUrl by remember { mutableStateOf(prefs.getString("cloud_url", "") ?: "") }
+    var cloudToken by remember { mutableStateOf("") }
+    var cloudConsent by remember { mutableStateOf(false) }
+    var cloudBusy by remember { mutableStateOf(false) }
     LifecycleEventEffect(Lifecycle.Event.ON_STOP) { if (hasPin) { unlocked = false; pinInput = "" } }
     var editingId by remember { mutableStateOf<String?>(null) }
     val tabs = listOf("Call", "Messages", "Alerts", "Library", "Schedule", "Insights", "Settings")
@@ -382,7 +415,17 @@ private fun NotifnixApp(context: MainActivity, database: ScenarioDatabase) {
                             Button(onClick = { showCallPreview = true; save("CALL", caller, number) }, modifier = Modifier.weight(1f)) { Icon(Icons.Default.Call, null); Spacer(Modifier.width(6.dp)); Text("Save & preview") }
                             OutlinedButton(onClick = { context.openDialer(number) }, modifier = Modifier.weight(1f)) { Icon(Icons.Default.Call, null); Spacer(Modifier.width(4.dp)); Text("Open dialer") }
                         }
-                        Text("Use E.164 format: +country code followed by the number (for example, +919876543210). Your dialer places the call through your carrier; international calling must be enabled and may cost extra. Your carrier controls caller ID.", style = MaterialTheme.typography.bodySmall, color = Color(0xFF737B8E))
+                        Text("Use E.164 format (+country code). Carrier handoff uses your SIM. For provider-backed global calling, configure Notifnix Cloud in Settings.", style = MaterialTheme.typography.bodySmall, color = Color(0xFF737B8E))
+                        Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(checked = cloudConsent, onCheckedChange = { cloudConsent = it }); Text("I am authorized to call this recipient", style = MaterialTheme.typography.bodySmall) }
+                        OutlinedButton(enabled = !cloudBusy && cloudConsent, onClick = {
+                            scope.launch {
+                                cloudBusy = true
+                                runCatching { notifnixCloudRequest(cloudUrl, cloudToken, "/api/call", JSONObject().put("to", number.trim()).put("consent", true)) }
+                                    .onSuccess { snackbar = "Call accepted by provider: " + it.optString("sid") + " · " + it.optString("status") }
+                                    .onFailure { snackbar = "Cloud call failed: " + it.message }
+                                cloudBusy = false
+                            }
+                        }, modifier = Modifier.fillMaxWidth()) { Text(if (cloudBusy) "Requesting…" else "Place global call via Notifnix Cloud") }
                         if (showCallPreview) { Spacer(Modifier.height(14.dp)); CallPreview(caller, number) { showCallPreview = false } }
                     }
                     1 -> {
@@ -417,7 +460,17 @@ private fun NotifnixApp(context: MainActivity, database: ScenarioDatabase) {
                         Button(onClick = { context.composeRealSms(smsNumber, messageBody) }, modifier = Modifier.fillMaxWidth()) {
                             Icon(Icons.Default.Chat, null); Spacer(Modifier.width(8.dp)); Text("Open SMS app to send")
                         }
-                        Text("Use E.164 format: +country code followed by the number. Your SMS app opens with the destination and message; confirm Send there. International SMS availability and charges depend on your carrier. The sample sender label does not change your real sender number.", style = MaterialTheme.typography.bodySmall, color = Color(0xFF737B8E))
+                        Text("Use E.164 format (+country code). Carrier handoff uses your SIM. Provider-backed sending requires Notifnix Cloud setup in Settings.", style = MaterialTheme.typography.bodySmall, color = Color(0xFF737B8E))
+                        Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(checked = cloudConsent, onCheckedChange = { cloudConsent = it }); Text("Recipient has agreed to receive this message", style = MaterialTheme.typography.bodySmall) }
+                        OutlinedButton(enabled = !cloudBusy && cloudConsent, onClick = {
+                            scope.launch {
+                                cloudBusy = true
+                                runCatching { notifnixCloudRequest(cloudUrl, cloudToken, "/api/sms", JSONObject().put("to", smsNumber.trim()).put("body", messageBody.trim()).put("consent", true)) }
+                                    .onSuccess { snackbar = "SMS accepted by provider: " + it.optString("sid") + " · " + it.optString("status") }
+                                    .onFailure { snackbar = "Cloud SMS failed: " + it.message }
+                                cloudBusy = false
+                            }
+                        }, modifier = Modifier.fillMaxWidth()) { Text(if (cloudBusy) "Sending…" else "Send global SMS via Notifnix Cloud") }
                         Button(
                             onClick = {
                                 if (messageFrom.isBlank() || smsNumber.isBlank() || messageBody.isBlank()) {
@@ -599,6 +652,24 @@ private fun NotifnixApp(context: MainActivity, database: ScenarioDatabase) {
                     }
                     else -> {
                         SectionTitle("Settings & tools", "Control privacy and personalize Notifnix.")
+                        SectionTitle("Global communications", "Connect the secure Notifnix Cloud backend. Provider credentials remain on the server.")
+                        OutlinedTextField(value = cloudUrl, onValueChange = { cloudUrl = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Backend URL (https://your-app.vercel.app)") })
+                        OutlinedTextField(value = cloudToken, onValueChange = { cloudToken = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, visualTransformation = PasswordVisualTransformation(), label = { Text("Notifnix API token") })
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Button(onClick = { prefs.edit().putString("cloud_url", cloudUrl.trim().trimEnd('/')).apply(); snackbar = "Backend URL saved on this device" }, modifier = Modifier.weight(1f)) { Text("Save backend URL") }
+                            OutlinedButton(enabled = cloudUrl.startsWith("https://"), onClick = {
+                                scope.launch {
+                                    cloudBusy = true
+                                    runCatching { notifnixCloudRequest(cloudUrl, "", "/api/health") }
+                                        .onSuccess { result -> snackbar = "Backend check: configured=" + result.optBoolean("configured") + " · SMS=" + result.optBoolean("smsConfigured") + " · Voice=" + result.optBoolean("voiceConfigured") }
+                                        .onFailure { snackbar = "Backend check failed: " + it.message }
+                                    cloudBusy = false
+                                }
+                            }, modifier = Modifier.weight(1f)) { Text("Test backend") }
+                        }
+                        Text("The API token stays only in this screen's memory and is not saved. Re-enter it after restarting Notifnix. Never share it. Cloud requests may incur provider charges. Provider acceptance is not proof of delivery.", style = MaterialTheme.typography.bodySmall, color = Color(0xFF737B8E))
+                        Divider()
+                        
                         SettingRow("Dark appearance", "Use a darker color palette") {
                             Switch(checked = darkMode, onCheckedChange = { darkMode = it; prefs.edit().putBoolean("dark_mode", it).apply() })
                         }
