@@ -29,6 +29,7 @@ interface ScenarioDao {
     @Upsert suspend fun upsert(item: ScenarioEntity)
     @Upsert suspend fun upsertAll(items: List<ScenarioEntity>)
     @Query("DELETE FROM scenarios WHERE id = :id") suspend fun delete(id: String)
+    @Query("UPDATE scenarios SET scheduledAt = NULL WHERE id = :id") suspend fun clearScheduledAt(id: String)
     @Query("DELETE FROM scenarios") suspend fun clear()
     @Query("SELECT * FROM scenarios WHERE id = :id LIMIT 1") suspend fun find(id: String): ScenarioEntity?
 }
