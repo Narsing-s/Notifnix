@@ -3,6 +3,11 @@ package com.notifnix.app
 import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.DatePickerDialog
+import android.app.TimePickerDialog
+import android.net.Uri
+import android.widget.Toast
+import java.util.Calendar
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -52,6 +57,37 @@ private const val PREFS = "notifnix_local"
 class MainActivity : ComponentActivity() {
     private val askNotifications = registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
     private val database by lazy { ScenarioDatabase.get(this) }
+    private val importBackup = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+        if (uri != null) lifecycleScope.launch {
+            val imported = runCatching {
+                val raw = contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
+                    ?: error("Could not read selected backup")
+                val array = org.json.JSONArray(raw)
+                (0 until array.length()).mapNotNull { index ->
+                    val row = array.optJSONObject(index) ?: return@mapNotNull null
+                    val title = row.optString("title").trim()
+                    val detail = row.optString("detail").trim()
+                    val type = row.optString("type", "ALERT").uppercase()
+                    if (title.isBlank() || type !in setOf("CALL", "MESSAGE", "ALERT")) return@mapNotNull null
+                    ScenarioEntity(
+                        id = row.optString("id").ifBlank { java.util.UUID.randomUUID().toString() },
+                        type = type, title = title, detail = detail,
+                        createdAt = row.optLong("createdAt", System.currentTimeMillis()),
+                        favorite = row.optBoolean("favorite", false)
+                    )
+                }
+            }
+            imported.onSuccess { rows ->
+                if (rows.isEmpty()) Toast.makeText(this@MainActivity, "No valid scenarios found in backup", Toast.LENGTH_LONG).show()
+                else {
+                    database.scenarios().upsertAll(rows)
+                    Toast.makeText(this@MainActivity, "Imported ${rows.size} scenarios", Toast.LENGTH_LONG).show()
+                }
+            }.onFailure { error ->
+                Toast.makeText(this@MainActivity, "Import failed: ${error.message ?: "Invalid backup"}", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -90,12 +126,29 @@ class MainActivity : ComponentActivity() {
         runCatching { NotificationManagerCompat.from(this).notify((System.currentTimeMillis() % Int.MAX_VALUE).toInt(), notification) }
     }
 
+    fun importScenarios() {
+        importBackup.launch(arrayOf("application/json", "text/*", "application/octet-stream"))
+    }
+
     fun schedule(item: ScenarioEntity) {
-        requestNotificationPermission()
-        val data = Data.Builder().putString("title", item.title).putString("detail", item.detail).build()
-        val request = OneTimeWorkRequestBuilder<ScenarioWorker>()
-            .setInputData(data).setInitialDelay(1, TimeUnit.MINUTES).build()
-        WorkManager.getInstance(this).enqueue(request)
+        val now = Calendar.getInstance()
+        DatePickerDialog(this, { _, year, month, day ->
+            val date = Calendar.getInstance().apply { set(year, month, day) }
+            TimePickerDialog(this, { _, hour, minute ->
+                date.set(Calendar.HOUR_OF_DAY, hour)
+                date.set(Calendar.MINUTE, minute)
+                date.set(Calendar.SECOND, 0)
+                val delay = (date.timeInMillis - System.currentTimeMillis()).coerceAtLeast(0L)
+                requestNotificationPermission()
+                val data = Data.Builder().putString("title", item.title).putString("detail", item.detail).build()
+                val request = OneTimeWorkRequestBuilder<ScenarioWorker>()
+                    .setInputData(data).setInitialDelay(delay, TimeUnit.MILLISECONDS).build()
+                WorkManager.getInstance(this).enqueue(request)
+                Toast.makeText(this, "Simulation scheduled", Toast.LENGTH_SHORT).show()
+            }, now.get(Calendar.HOUR_OF_DAY), now.get(Calendar.MINUTE), false).show()
+        }, now.get(Calendar.YEAR), now.get(Calendar.MONTH), now.get(Calendar.DAY_OF_MONTH)).apply {
+            datePicker.minDate = System.currentTimeMillis()
+        }.show()
     }
 
     fun exportScenarios(items: List<ScenarioEntity>) {
@@ -260,7 +313,7 @@ private fun NotifnixApp(context: MainActivity, database: ScenarioDatabase) {
                                                     else -> { notificationTitle = item.title; notificationBody = item.detail; selected = 2 }
                                                 }
                                             }) { Text("Edit") }
-                                            TextButton(onClick = { context.schedule(item); snackbar = "Scheduled for about one minute from now" }) { Text("Schedule · 1 min") }
+                                            TextButton(onClick = { context.schedule(item); snackbar = "Choose a date and time for this simulation" }) { Text("Schedule") }
                                         }
                                     }
                                 }
@@ -276,6 +329,7 @@ private fun NotifnixApp(context: MainActivity, database: ScenarioDatabase) {
                             TextButton(onClick = { pinInput = ""; pinDialog = true }) { Text(if (pin.isBlank()) "Set PIN" else "Change PIN") }
                         }
                         Button(onClick = { context.exportScenarios(history) }, modifier = Modifier.fillMaxWidth()) { Text("Export scenario backup") }
+                        OutlinedButton(onClick = { context.importScenarios() }, modifier = Modifier.fillMaxWidth()) { Text("Import scenario backup") }
                         OutlinedButton(onClick = {
                             val examples = listOf(
                                 ScenarioEntity(java.util.UUID.randomUUID().toString(), "MESSAGE", "Delivery update", "Your sample order is out for delivery."),
