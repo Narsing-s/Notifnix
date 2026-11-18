@@ -256,7 +256,7 @@ private fun NotifnixApp(context: MainActivity, database: ScenarioDatabase) {
     var snackbar by remember { mutableStateOf("") }
     LifecycleEventEffect(Lifecycle.Event.ON_STOP) { if (hasPin) { unlocked = false; pinInput = "" } }
     var editingId by remember { mutableStateOf<String?>(null) }
-    val tabs = listOf("Call", "Messages", "Alerts", "Library", "Schedule", "Settings")
+    val tabs = listOf("Call", "Messages", "Alerts", "Library", "Schedule", "Insights", "Settings")
     val palette = if (darkMode) darkColorScheme(primary = Color(0xFFB8AEFF), background = Color(0xFF101522), surface = Color(0xFF1A2232)) else lightColorScheme(primary = Violet, background = Canvas)
     LaunchedEffect(Unit) {
         if (!prefs.getBoolean("room_migrated", false)) {
@@ -317,7 +317,7 @@ private fun NotifnixApp(context: MainActivity, database: ScenarioDatabase) {
             },
             bottomBar = {
                 NavigationBar {
-                    val icons = listOf(Icons.Default.Call, Icons.Default.Chat, Icons.Default.Notifications, Icons.Default.PhoneInTalk, Icons.Default.Schedule, Icons.Default.Favorite)
+                    val icons = listOf(Icons.Default.Call, Icons.Default.Chat, Icons.Default.Notifications, Icons.Default.PhoneInTalk, Icons.Default.Schedule, Icons.Default.Favorite, Icons.Default.FavoriteBorder)
                     tabs.forEachIndexed { index, label ->
                         NavigationBarItem(selected = selected == index, onClick = { selected = index }, icon = { Icon(icons[index], null) }, label = { Text(label) })
                     }
@@ -508,6 +508,52 @@ private fun NotifnixApp(context: MainActivity, database: ScenarioDatabase) {
                             }
                         }
                     }
+                    5 -> {
+                        SectionTitle("Insights & activity", "A live overview of your locally stored simulations.")
+                        val calls = history.count { it.type == "CALL" }
+                        val alerts = history.count { it.type == "ALERT" }
+                        val scenariosMessages = history.count { it.type == "MESSAGE" }
+                        val pendingCount = scheduled.count { it.state == WorkInfo.State.ENQUEUED || it.state == WorkInfo.State.BLOCKED }
+                        val completedCount = scheduled.count { it.state == WorkInfo.State.SUCCEEDED }
+                        val failedCount = scheduled.count { it.state == WorkInfo.State.FAILED }
+                        val smsInbox = smsHistory.count { it.folder == "INBOX" }
+                        val smsSent = smsHistory.count { it.folder == "SENT" }
+                        val smsFailed = smsHistory.count { it.folder == "FAILED" }
+                        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                                InsightMetric("Scenarios", history.size.toString(), Modifier.weight(1f))
+                                InsightMetric("SMS samples", smsHistory.size.toString(), Modifier.weight(1f))
+                            }
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                                InsightMetric("Pending", pendingCount.toString(), Modifier.weight(1f))
+                                InsightMetric("Completed", completedCount.toString(), Modifier.weight(1f))
+                                InsightMetric("Failed", failedCount.toString(), Modifier.weight(1f))
+                            }
+                            Text("Scenario breakdown", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                            InsightBar("Call previews", calls, history.size)
+                            InsightBar("Message scenarios", scenariosMessages, history.size)
+                            InsightBar("Notification scenarios", alerts, history.size)
+                            Text("Private SMS folders", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                            InsightBar("Inbox", smsInbox, smsHistory.size)
+                            InsightBar("Sent", smsSent, smsHistory.size)
+                            InsightBar("Failed", smsFailed, smsHistory.size)
+                            Text("Recent activity", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                            history.take(8).forEach { row ->
+                                Surface(color = palette.surface, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) {
+                                    Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                                        Column(Modifier.weight(1f)) {
+                                            Text("SIMULATED · ${row.type}", color = Violet, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                                            Text(row.title, fontWeight = FontWeight.SemiBold)
+                                            Text(java.text.DateFormat.getDateTimeInstance().format(java.util.Date(row.createdAt)), style = MaterialTheme.typography.labelSmall)
+                                        }
+                                        TextButton(onClick = { selected = 3 }) { Text("Library") }
+                                    }
+                                }
+                            }
+                            if (history.isEmpty() && smsHistory.isEmpty()) Text("Create your first simulation to see activity insights.")
+                            Text("Counts are calculated from local Room data and WorkManager state. No analytics are uploaded.", style = MaterialTheme.typography.bodySmall, color = Color(0xFF737B8E))
+                        }
+                    }
                     else -> {
                         SectionTitle("Settings & tools", "Control privacy and personalize Notifnix.")
                         SettingRow("Dark appearance", "Use a darker color palette") {
@@ -644,5 +690,29 @@ private fun CallPreview(name: String, phone: String, onClose: () -> Unit) {
 private fun EmptyState() {
     Box(Modifier.fillMaxWidth().padding(30.dp), contentAlignment = Alignment.Center) {
         Text("No matching scenarios yet. Create one from any studio.")
+    }
+}
+
+@Composable
+private fun InsightMetric(label: String, value: String, modifier: Modifier = Modifier) {
+    Surface(color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(16.dp), modifier = modifier) {
+        Column(Modifier.padding(12.dp)) {
+            Text(value, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = Violet)
+            Text(label, style = MaterialTheme.typography.labelSmall)
+        }
+    }
+}
+
+@Composable
+private fun InsightBar(label: String, count: Int, total: Int) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(label, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+            Text(count.toString(), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+        }
+        LinearProgressIndicator(
+            progress = { if (total == 0) 0f else (count.toFloat() / total.toFloat()).coerceIn(0f, 1f) },
+            modifier = Modifier.fillMaxWidth()
+        )
     }
 }
