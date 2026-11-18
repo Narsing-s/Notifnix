@@ -14,6 +14,20 @@ android {
         versionCode = 2
         versionName = "1.1.0"
     }
+    signingConfigs {
+        create("release") {
+            storeFile = file(System.getenv("ANDROID_KEYSTORE_PATH") ?: "release.keystore")
+            storePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+            keyAlias = System.getenv("ANDROID_KEY_ALIAS")
+            keyPassword = System.getenv("ANDROID_KEY_PASSWORD")
+        }
+    }
+    buildTypes {
+        release {
+            signingConfig = signingConfigs.getByName("release")
+            isMinifyEnabled = false
+        }
+    }
     buildFeatures { compose = true }
     packaging { resources.excludes += "/META-INF/{AL2.0,LGPL2.1}" }
 }
