@@ -151,6 +151,25 @@ class MainActivity : FragmentActivity() {
         runCatching { NotificationManagerCompat.from(this).notify((System.currentTimeMillis() % Int.MAX_VALUE).toInt(), notification) }
     }
 
+    fun chooseSmsDateTime(current: Long, onPicked: (Long) -> Unit) {
+        val initial = Calendar.getInstance().apply { timeInMillis = current }
+        DatePickerDialog(this, { _, year, month, day ->
+            val selected = Calendar.getInstance().apply {
+                timeInMillis = current
+                set(Calendar.YEAR, year)
+                set(Calendar.MONTH, month)
+                set(Calendar.DAY_OF_MONTH, day)
+            }
+            TimePickerDialog(this, { _, hour, minute ->
+                selected.set(Calendar.HOUR_OF_DAY, hour)
+                selected.set(Calendar.MINUTE, minute)
+                selected.set(Calendar.SECOND, 0)
+                selected.set(Calendar.MILLISECOND, 0)
+                onPicked(selected.timeInMillis)
+            }, initial.get(Calendar.HOUR_OF_DAY), initial.get(Calendar.MINUTE), false).show()
+        }, initial.get(Calendar.YEAR), initial.get(Calendar.MONTH), initial.get(Calendar.DAY_OF_MONTH)).show()
+    }
+
     fun importScenarios() {
         importBackup.launch(arrayOf("application/json", "text/*", "application/octet-stream"))
     }
@@ -201,6 +220,7 @@ class MainActivity : FragmentActivity() {
 private fun NotifnixApp(context: MainActivity, database: ScenarioDatabase) {
     val scope = rememberCoroutineScope()
     val history by database.scenarios().observeAll().collectAsStateWithLifecycle(initialValue = emptyList())
+    val smsHistory by database.smsMessages().observeAll().collectAsStateWithLifecycle(initialValue = emptyList())
     var scheduled by remember { mutableStateOf<List<WorkInfo>>(emptyList()) }
     DisposableEffect(context) {
         val liveData = WorkManager.getInstance(context).getWorkInfosByTagLiveData("notifnix_scheduled")
@@ -214,6 +234,10 @@ private fun NotifnixApp(context: MainActivity, database: ScenarioDatabase) {
     var number by remember { mutableStateOf("+1 202 555 0148") }
     var messageFrom by remember { mutableStateOf("Maya") }
     var messageBody by remember { mutableStateOf("Hey! This is a sample test message.") }
+    var smsNumber by remember { mutableStateOf("+1 202 555 0148") }
+    var smsFolder by remember { mutableStateOf("INBOX") }
+    var smsCount by remember { mutableIntStateOf(1) }
+    var smsTimestamp by remember { mutableLongStateOf(System.currentTimeMillis()) }
     var notificationTitle by remember { mutableStateOf("Build complete") }
     var notificationBody by remember { mutableStateOf("Your test notification is ready.") }
     var showCallPreview by remember { mutableStateOf(false) }
@@ -321,11 +345,84 @@ private fun NotifnixApp(context: MainActivity, database: ScenarioDatabase) {
                         if (showCallPreview) { Spacer(Modifier.height(14.dp)); CallPreview(caller, number) { showCallPreview = false } }
                     }
                     1 -> {
-                        SectionTitle("Message studio", "Compose a sample SMS-style conversation.")
-                        Field("Sender name", messageFrom) { messageFrom = it }
+                        SectionTitle("Simulated SMS studio", "Create test messages in a private Notifnix inbox. These never enter your phone's real SMS app.")
+                        Field("Sender name / label", messageFrom) { messageFrom = it }
+                        Field("Sender phone number", smsNumber) { smsNumber = it }
                         Field("Message text", messageBody) { messageBody = it }
+                        Text("Destination folder", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                listOf("INBOX", "SENT", "DRAFT").forEach { folder ->
+                                    FilterChip(selected = smsFolder == folder, onClick = { smsFolder = folder }, label = { Text(folder.lowercase().replaceFirstChar { it.uppercase() }) })
+                                }
+                            }
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                listOf("OUTBOX", "FAILED", "QUEUED").forEach { folder ->
+                                    FilterChip(selected = smsFolder == folder, onClick = { smsFolder = folder }, label = { Text(folder.lowercase().replaceFirstChar { it.uppercase() }) })
+                                }
+                            }
+                        }
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                            Column(Modifier.weight(1f)) {
+                                Text("Message date & time", fontWeight = FontWeight.SemiBold)
+                                Text(java.text.DateFormat.getDateTimeInstance().format(java.util.Date(smsTimestamp)), style = MaterialTheme.typography.bodySmall)
+                            }
+                            TextButton(onClick = { context.chooseSmsDateTime(smsTimestamp) { smsTimestamp = it } }) { Text("Change") }
+                        }
+                        Text("Bulk generate: $smsCount message${if (smsCount == 1) "" else "s"}", fontWeight = FontWeight.SemiBold)
+                        Slider(value = smsCount.toFloat(), onValueChange = { smsCount = it.toInt().coerceIn(1, 100) }, valueRange = 1f..100f, steps = 98)
                         MessagePreview(messageFrom, messageBody)
-                        Button(onClick = { save("MESSAGE", messageFrom, messageBody) }, modifier = Modifier.fillMaxWidth()) { Text(if (editingId == null) "Save message scenario" else "Update scenario") }
+                        Button(
+                            onClick = {
+                                if (messageFrom.isBlank() || smsNumber.isBlank() || messageBody.isBlank()) {
+                                    Toast.makeText(context, "Enter sender, number, and message text", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    val rows = (0 until smsCount).map { index ->
+                                        SimulatedSmsEntity(
+                                            id = java.util.UUID.randomUUID().toString(),
+                                            sender = messageFrom.trim(),
+                                            phoneNumber = smsNumber.trim(),
+                                            body = messageBody.trim(),
+                                            folder = smsFolder,
+                                            timestamp = smsTimestamp + index
+                                        )
+                                    }
+                                    scope.launch {
+                                        database.smsMessages().upsertAll(rows)
+                                        snackbar = "Added $smsCount simulated SMS message${if (smsCount == 1) "" else "s"} to $smsFolder"
+                                    }
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text("Generate $smsCount simulated SMS") }
+                        Spacer(Modifier.height(14.dp))
+                        Text("Local SMS history", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        val folderRows = smsHistory.filter { it.folder == smsFolder }
+                        if (folderRows.isEmpty()) {
+                            Text("No simulated messages in ${smsFolder.lowercase()} yet.", style = MaterialTheme.typography.bodySmall, color = Color(0xFF737B8E))
+                        } else {
+                            LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(bottom = 14.dp)) {
+                                items(folderRows, key = { it.id }) { sms ->
+                                    Surface(color = palette.surface, shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
+                                        Column(Modifier.padding(12.dp)) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Column(Modifier.weight(1f)) {
+                                                    Text("SIMULATED · ${sms.folder}", color = Violet, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                                                    Text(sms.sender, fontWeight = FontWeight.SemiBold)
+                                                    Text(sms.phoneNumber, style = MaterialTheme.typography.labelSmall)
+                                                }
+                                                IconButton(onClick = { scope.launch { database.smsMessages().delete(sms.id) } }) { Icon(Icons.Default.Delete, "Delete simulated message") }
+                                            }
+                                            Text(sms.body)
+                                            Text(java.text.DateFormat.getDateTimeInstance().format(java.util.Date(sms.timestamp)), style = MaterialTheme.typography.labelSmall, color = Color(0xFF737B8E))
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        OutlinedButton(onClick = { save("MESSAGE", messageFrom, messageBody) }, modifier = Modifier.fillMaxWidth()) {
+                            Text("Also save as a library scenario")
+                        }
                     }
                     2 -> {
                         SectionTitle("Notification studio", "Send a local test notification to this device.")
