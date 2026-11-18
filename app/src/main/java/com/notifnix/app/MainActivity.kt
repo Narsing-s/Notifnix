@@ -16,6 +16,8 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.biometric.BiometricManager
+import androidx.biometric.BiometricPrompt
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -45,6 +47,8 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.work.Data
+import androidx.work.ExistingWorkPolicy
+import androidx.work.WorkInfo
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import kotlinx.coroutines.launch
@@ -106,6 +110,23 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    fun canUseBiometric(): Boolean =
+        BiometricManager.from(this).canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG) == BiometricManager.BIOMETRIC_SUCCESS
+
+    fun authenticateBiometric(onSuccess: () -> Unit, onError: (String) -> Unit) {
+        val prompt = BiometricPrompt(this, ContextCompat.getMainExecutor(this),
+            object : BiometricPrompt.AuthenticationCallback() {
+                override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) { onSuccess() }
+                override fun onAuthenticationError(errorCode: Int, errString: CharSequence) { onError(errString.toString()) }
+            })
+        val info = BiometricPrompt.PromptInfo.Builder()
+            .setTitle("Unlock Notifnix")
+            .setSubtitle("Confirm your identity to continue")
+            .setNegativeButtonText("Use PIN")
+            .build()
+        prompt.authenticate(info)
+    }
+
     fun requestNotificationPermission() {
         if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
             askNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
@@ -142,10 +163,21 @@ class MainActivity : ComponentActivity() {
                 date.set(Calendar.SECOND, 0)
                 val delay = (date.timeInMillis - System.currentTimeMillis()).coerceAtLeast(0L)
                 requestNotificationPermission()
-                val data = Data.Builder().putString("title", item.title).putString("detail", item.detail).build()
+                val data = Data.Builder()
+                    .putString("title", item.title)
+                    .putString("detail", item.detail)
+                    .putString("scenarioId", item.id)
+                    .putLong("scheduledAt", date.timeInMillis)
+                    .build()
                 val request = OneTimeWorkRequestBuilder<ScenarioWorker>()
-                    .setInputData(data).setInitialDelay(delay, TimeUnit.MILLISECONDS).build()
-                WorkManager.getInstance(this).enqueue(request)
+                    .setInputData(data)
+                    .addTag("notifnix_scheduled")
+                    .addTag("scenario_" + item.id)
+                    .setInitialDelay(delay, TimeUnit.MILLISECONDS)
+                    .build()
+                WorkManager.getInstance(this).enqueueUniqueWork(
+                    "notifnix_" + item.id, ExistingWorkPolicy.REPLACE, request
+                )
                 Toast.makeText(this, "Simulation scheduled", Toast.LENGTH_SHORT).show()
             }, now.get(Calendar.HOUR_OF_DAY), now.get(Calendar.MINUTE), false).show()
         }, now.get(Calendar.YEAR), now.get(Calendar.MONTH), now.get(Calendar.DAY_OF_MONTH)).apply {
@@ -166,6 +198,8 @@ class MainActivity : ComponentActivity() {
 private fun NotifnixApp(context: MainActivity, database: ScenarioDatabase) {
     val scope = rememberCoroutineScope()
     val history by database.scenarios().observeAll().collectAsStateWithLifecycle(initialValue = emptyList())
+    val scheduledFlow = remember { WorkManager.getInstance(context).getWorkInfosByTagFlow("notifnix_scheduled") }
+    val scheduled by scheduledFlow.collectAsStateWithLifecycle(initialValue = emptyList())
     val prefs = remember { context.getSharedPreferences(PREFS, Context.MODE_PRIVATE) }
     var selected by remember { mutableIntStateOf(0) }
     var caller by remember { mutableStateOf("Alex Morgan") }
@@ -181,13 +215,14 @@ private fun NotifnixApp(context: MainActivity, database: ScenarioDatabase) {
     val initialPinRecord = remember { PinSecurity.loadOrMigrate(prefs) }
     var pinRecord by remember { mutableStateOf(initialPinRecord ?: "") }
     var hasPin by remember { mutableStateOf(initialPinRecord != null) }
+    var biometricEnabled by remember { mutableStateOf(prefs.getBoolean("biometric_enabled", false)) }
     var unlocked by remember { mutableStateOf(initialPinRecord == null) }
     var pinInput by remember { mutableStateOf("") }
     var pinDialog by remember { mutableStateOf(false) }
     var snackbar by remember { mutableStateOf("") }
     LifecycleEventEffect(Lifecycle.Event.ON_STOP) { if (hasPin) { unlocked = false; pinInput = "" } }
     var editingId by remember { mutableStateOf<String?>(null) }
-    val tabs = listOf("Call", "Messages", "Alerts", "Library", "Settings")
+    val tabs = listOf("Call", "Messages", "Alerts", "Library", "Schedule", "Settings")
     val palette = if (darkMode) darkColorScheme(primary = Color(0xFFB8AEFF), background = Color(0xFF101522), surface = Color(0xFF1A2232)) else lightColorScheme(primary = Violet, background = Canvas)
     LaunchedEffect(Unit) {
         if (!prefs.getBoolean("room_migrated", false)) {
@@ -226,7 +261,13 @@ private fun NotifnixApp(context: MainActivity, database: ScenarioDatabase) {
 
     MaterialTheme(colorScheme = palette) {
         if (!unlocked) {
-            LockScreen(pinInput, { pinInput = it }, { if (PinSecurity.verify(pinInput, pinRecord)) { unlocked = true; pinInput = "" } else pinInput = "" })
+            LockScreen(
+                value = pinInput,
+                onValue = { pinInput = it },
+                unlock = { if (PinSecurity.verify(pinInput, pinRecord)) { unlocked = true; pinInput = "" } else pinInput = "" },
+                biometricEnabled = biometricEnabled,
+                onBiometric = { context.authenticateBiometric({ unlocked = true; pinInput = "" }, { message -> Toast.makeText(context, message, Toast.LENGTH_SHORT).show() }) }
+            )
             return@MaterialTheme
         }
         Scaffold(
@@ -242,7 +283,7 @@ private fun NotifnixApp(context: MainActivity, database: ScenarioDatabase) {
             },
             bottomBar = {
                 NavigationBar {
-                    val icons = listOf(Icons.Default.Call, Icons.Default.Chat, Icons.Default.Notifications, Icons.Default.PhoneInTalk, Icons.Default.Favorite)
+                    val icons = listOf(Icons.Default.Call, Icons.Default.Chat, Icons.Default.Notifications, Icons.Default.PhoneInTalk, Icons.Default.Schedule, Icons.Default.Favorite)
                     tabs.forEachIndexed { index, label ->
                         NavigationBarItem(selected = selected == index, onClick = { selected = index }, icon = { Icon(icons[index], null) }, label = { Text(label) })
                     }
@@ -325,6 +366,41 @@ private fun NotifnixApp(context: MainActivity, database: ScenarioDatabase) {
                             }
                         }
                     }
+                    4 -> {
+                        SectionTitle("Scheduled simulations", "Manage local reminders created from your scenario library.")
+                        val upcoming = scheduled.sortedBy { it.inputData.getLong("scheduledAt", 0L) }
+                        if (upcoming.isEmpty()) {
+                            EmptyState()
+                        } else {
+                            LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 18.dp)) {
+                                items(upcoming, key = { it.id.toString() }) { work ->
+                                    val title = work.inputData.getString("title") ?: "Scheduled simulation"
+                                    val detail = work.inputData.getString("detail") ?: ""
+                                    val at = work.inputData.getLong("scheduledAt", 0L)
+                                    val canCancel = work.state == WorkInfo.State.ENQUEUED || work.state == WorkInfo.State.BLOCKED
+                                    Surface(color = palette.surface, shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
+                                        Column(Modifier.padding(14.dp)) {
+                                            Text("SIMULATED · " + work.state.name, color = Violet, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                                            Text(title, fontWeight = FontWeight.SemiBold)
+                                            Text(detail, style = MaterialTheme.typography.bodySmall)
+                                            if (at > 0L) Text(java.text.DateFormat.getDateTimeInstance().format(java.util.Date(at)), style = MaterialTheme.typography.labelSmall)
+                                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                TextButton(onClick = {
+                                                    scope.launch {
+                                                        val id = work.inputData.getString("scenarioId")
+                                                        val item = id?.let { database.scenarios().find(it) }
+                                                        if (item != null) context.schedule(item)
+                                                        else Toast.makeText(context, "Original scenario is no longer available", Toast.LENGTH_SHORT).show()
+                                                    }
+                                                }) { Text("Reschedule") }
+                                                if (canCancel) TextButton(onClick = { WorkManager.getInstance(context).cancelWorkById(work.id) }) { Text("Cancel") }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                     else -> {
                         SectionTitle("Settings & tools", "Control privacy and personalize Notifnix.")
                         SettingRow("Dark appearance", "Use a darker color palette") {
@@ -332,6 +408,20 @@ private fun NotifnixApp(context: MainActivity, database: ScenarioDatabase) {
                         }
                         SettingRow("App lock", if (!hasPin) "Set a local PIN to protect this app" else "PIN protection is enabled") {
                             TextButton(onClick = { pinInput = ""; pinDialog = true }) { Text(if (!hasPin) "Set PIN" else "Change PIN") }
+                        }
+                        SettingRow("Biometric unlock", if (!hasPin) "Set a PIN first to enable biometric fallback" else "Use fingerprint or supported face unlock") {
+                            Switch(
+                                checked = biometricEnabled,
+                                enabled = hasPin,
+                                onCheckedChange = { enabled ->
+                                    if (enabled && !context.canUseBiometric()) {
+                                        Toast.makeText(context, "Set up a strong biometric in Android settings first", Toast.LENGTH_LONG).show()
+                                    } else {
+                                        biometricEnabled = enabled
+                                        prefs.edit().putBoolean("biometric_enabled", enabled).apply()
+                                    }
+                                }
+                            )
                         }
                         Button(onClick = { context.exportScenarios(history) }, modifier = Modifier.fillMaxWidth()) { Text("Export scenario backup") }
                         OutlinedButton(onClick = { context.importScenarios() }, modifier = Modifier.fillMaxWidth()) { Text("Import scenario backup") }
@@ -369,14 +459,24 @@ private fun NotifnixApp(context: MainActivity, database: ScenarioDatabase) {
 }
 
 @Composable
-private fun LockScreen(value: String, onValue: (String) -> Unit, unlock: () -> Unit) {
+private fun LockScreen(
+    value: String,
+    onValue: (String) -> Unit,
+    unlock: () -> Unit,
+    biometricEnabled: Boolean,
+    onBiometric: () -> Unit
+) {
     Column(Modifier.fillMaxSize().padding(28.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
         Text("Notifnix is locked", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
         Text("Enter your local app PIN to continue.")
         Spacer(Modifier.height(16.dp))
         OutlinedTextField(value, onValue, label = { Text("PIN") }, singleLine = true)
         Spacer(Modifier.height(12.dp))
-        Button(onClick = unlock) { Text("Unlock") }
+        Button(onClick = unlock) { Text("Unlock with PIN") }
+        if (biometricEnabled) {
+            Spacer(Modifier.height(8.dp))
+            OutlinedButton(onClick = onBiometric) { Text("Unlock with fingerprint / face") }
+        }
     }
 }
 
