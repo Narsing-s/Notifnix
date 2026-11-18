@@ -40,6 +40,8 @@ import androidx.compose.ui.unit.dp
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.work.Data
@@ -183,6 +185,7 @@ private fun NotifnixApp(context: MainActivity, database: ScenarioDatabase) {
     var pinInput by remember { mutableStateOf("") }
     var pinDialog by remember { mutableStateOf(false) }
     var snackbar by remember { mutableStateOf("") }
+    LifecycleEventEffect(Lifecycle.Event.ON_STOP) { if (hasPin) { unlocked = false; pinInput = "" } }
     var editingId by remember { mutableStateOf<String?>(null) }
     val tabs = listOf("Call", "Messages", "Alerts", "Library", "Settings")
     val palette = if (darkMode) darkColorScheme(primary = Color(0xFFB8AEFF), background = Color(0xFF101522), surface = Color(0xFF1A2232)) else lightColorScheme(primary = Violet, background = Canvas)
