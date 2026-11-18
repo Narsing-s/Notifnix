@@ -172,6 +172,35 @@ class MainActivity : FragmentActivity() {
         }, initial.get(Calendar.YEAR), initial.get(Calendar.MONTH), initial.get(Calendar.DAY_OF_MONTH)).show()
     }
 
+    fun openDialer(receiverNumber: String) {
+        val cleaned = receiverNumber.trim()
+        if (cleaned.isBlank()) {
+            Toast.makeText(this, "Enter a receiver phone number", Toast.LENGTH_SHORT).show()
+            return
+        }
+        runCatching {
+            startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:" + Uri.encode(cleaned))))
+        }.onFailure {
+            Toast.makeText(this, "No dialer app is available", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    fun composeRealSms(receiverNumber: String, body: String) {
+        val cleaned = receiverNumber.trim()
+        if (cleaned.isBlank() || body.isBlank()) {
+            Toast.makeText(this, "Enter receiver number and message", Toast.LENGTH_SHORT).show()
+            return
+        }
+        runCatching {
+            val intent = Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:" + Uri.encode(cleaned))).apply {
+                putExtra("sms_body", body)
+            }
+            startActivity(intent)
+        }.onFailure {
+            Toast.makeText(this, "No SMS app is available on this device", Toast.LENGTH_LONG).show()
+        }
+    }
+
     fun importScenarios() {
         importBackup.launch(arrayOf("application/json", "text/*", "application/octet-stream"))
     }
@@ -342,15 +371,16 @@ private fun NotifnixApp(context: MainActivity, database: ScenarioDatabase) {
                         Field("Phone number", number) { number = it }
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             Button(onClick = { showCallPreview = true; save("CALL", caller, number) }, modifier = Modifier.weight(1f)) { Icon(Icons.Default.Call, null); Spacer(Modifier.width(6.dp)); Text("Save & preview") }
-                            OutlinedButton(onClick = { caller = listOf("Jordan Lee", "Taylor Reed", "Casey Morgan", "Avery Parker").random(); number = "+1 202 555 01%02d".format((10..99).random()) }) { Text("Random") }
+                            OutlinedButton(onClick = { context.openDialer(number) }, modifier = Modifier.weight(1f)) { Icon(Icons.Default.Call, null); Spacer(Modifier.width(4.dp)); Text("Open dialer") }
                         }
+                        Text("Real call test: opens your phone dialer with the receiver number. Review and tap Call yourself. Caller ID is provided by your SIM/network; it cannot be changed here.", style = MaterialTheme.typography.bodySmall, color = Color(0xFF737B8E))
                         if (showCallPreview) { Spacer(Modifier.height(14.dp)); CallPreview(caller, number) { showCallPreview = false } }
                     }
                     1 -> {
                         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
                         SectionTitle("Simulated SMS studio", "Create test messages in a private Notifnix inbox. These never enter your phone's real SMS app.")
                         Field("Sender name / label", messageFrom) { messageFrom = it }
-                        Field("Sender phone number", smsNumber) { smsNumber = it }
+                        Field("Receiver phone number", smsNumber) { smsNumber = it }
                         Field("Message text", messageBody) { messageBody = it }
                         Text("Destination folder", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
                         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -375,6 +405,10 @@ private fun NotifnixApp(context: MainActivity, database: ScenarioDatabase) {
                         Text("Bulk generate: $smsCount message${if (smsCount == 1) "" else "s"}", fontWeight = FontWeight.SemiBold)
                         Slider(value = smsCount.toFloat(), onValueChange = { smsCount = it.toInt().coerceIn(1, 100) }, valueRange = 1f..100f, steps = 98)
                         MessagePreview(messageFrom, messageBody)
+                        Button(onClick = { context.composeRealSms(smsNumber, messageBody) }, modifier = Modifier.fillMaxWidth()) {
+                            Icon(Icons.Default.Chat, null); Spacer(Modifier.width(8.dp)); Text("Open SMS app to send")
+                        }
+                        Text("Real SMS test: opens your default SMS app with the receiver and message filled in. Confirm Send there. Sender is the SIM used by that app, not the sample sender label.", style = MaterialTheme.typography.bodySmall, color = Color(0xFF737B8E))
                         Button(
                             onClick = {
                                 if (messageFrom.isBlank() || smsNumber.isBlank() || messageBody.isBlank()) {
