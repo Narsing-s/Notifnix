@@ -20,6 +20,7 @@ import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -345,6 +346,7 @@ private fun NotifnixApp(context: MainActivity, database: ScenarioDatabase) {
                         if (showCallPreview) { Spacer(Modifier.height(14.dp)); CallPreview(caller, number) { showCallPreview = false } }
                     }
                     1 -> {
+                        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
                         SectionTitle("Simulated SMS studio", "Create test messages in a private Notifnix inbox. These never enter your phone's real SMS app.")
                         Field("Sender name / label", messageFrom) { messageFrom = it }
                         Field("Sender phone number", smsNumber) { smsNumber = it }
@@ -401,8 +403,8 @@ private fun NotifnixApp(context: MainActivity, database: ScenarioDatabase) {
                         if (folderRows.isEmpty()) {
                             Text("No simulated messages in ${smsFolder.lowercase()} yet.", style = MaterialTheme.typography.bodySmall, color = Color(0xFF737B8E))
                         } else {
-                            LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(bottom = 14.dp)) {
-                                items(folderRows, key = { it.id }) { sms ->
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                                folderRows.forEach { sms ->
                                     Surface(color = palette.surface, shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
                                         Column(Modifier.padding(12.dp)) {
                                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -422,6 +424,7 @@ private fun NotifnixApp(context: MainActivity, database: ScenarioDatabase) {
                         }
                         OutlinedButton(onClick = { save("MESSAGE", messageFrom, messageBody) }, modifier = Modifier.fillMaxWidth()) {
                             Text("Also save as a library scenario")
+                        }
                         }
                     }
                     2 -> {
