@@ -176,8 +176,10 @@ private fun NotifnixApp(context: MainActivity, database: ScenarioDatabase) {
     var search by remember { mutableStateOf("") }
     var favoritesOnly by remember { mutableStateOf(false) }
     var darkMode by remember { mutableStateOf(prefs.getBoolean("dark_mode", false)) }
-    var pin by remember { mutableStateOf(prefs.getString("app_pin", "") ?: "") }
-    var unlocked by remember { mutableStateOf(pin.isBlank()) }
+    val initialPinRecord = remember { PinSecurity.loadOrMigrate(prefs) }
+    var pinRecord by remember { mutableStateOf(initialPinRecord ?: "") }
+    var hasPin by remember { mutableStateOf(initialPinRecord != null) }
+    var unlocked by remember { mutableStateOf(initialPinRecord == null) }
     var pinInput by remember { mutableStateOf("") }
     var pinDialog by remember { mutableStateOf(false) }
     var snackbar by remember { mutableStateOf("") }
@@ -221,7 +223,7 @@ private fun NotifnixApp(context: MainActivity, database: ScenarioDatabase) {
 
     MaterialTheme(colorScheme = palette) {
         if (!unlocked) {
-            LockScreen(pinInput, { pinInput = it }, { if (pinInput == pin) { unlocked = true; pinInput = "" } else pinInput = "" })
+            LockScreen(pinInput, { pinInput = it }, { if (PinSecurity.verify(pinInput, pinRecord)) { unlocked = true; pinInput = "" } else pinInput = "" })
             return@MaterialTheme
         }
         Scaffold(
@@ -325,8 +327,8 @@ private fun NotifnixApp(context: MainActivity, database: ScenarioDatabase) {
                         SettingRow("Dark appearance", "Use a darker color palette") {
                             Switch(checked = darkMode, onCheckedChange = { darkMode = it; prefs.edit().putBoolean("dark_mode", it).apply() })
                         }
-                        SettingRow("App lock", if (pin.isBlank()) "Set a local PIN to protect this app" else "PIN protection is enabled") {
-                            TextButton(onClick = { pinInput = ""; pinDialog = true }) { Text(if (pin.isBlank()) "Set PIN" else "Change PIN") }
+                        SettingRow("App lock", if (!hasPin) "Set a local PIN to protect this app" else "PIN protection is enabled") {
+                            TextButton(onClick = { pinInput = ""; pinDialog = true }) { Text(if (!hasPin) "Set PIN" else "Change PIN") }
                         }
                         Button(onClick = { context.exportScenarios(history) }, modifier = Modifier.fillMaxWidth()) { Text("Export scenario backup") }
                         OutlinedButton(onClick = { context.importScenarios() }, modifier = Modifier.fillMaxWidth()) { Text("Import scenario backup") }
@@ -354,9 +356,9 @@ private fun NotifnixApp(context: MainActivity, database: ScenarioDatabase) {
         if (pinDialog) {
             AlertDialog(
                 onDismissRequest = { pinDialog = false },
-                title = { Text(if (pin.isBlank()) "Set app PIN" else "Change app PIN") },
+                title = { Text(if (!hasPin) "Set app PIN" else "Change app PIN") },
                 text = { OutlinedTextField(pinInput, { pinInput = it.filter(Char::isDigit).take(6) }, label = { Text("New 4–6 digit PIN") }, singleLine = true) },
-                confirmButton = { TextButton(onClick = { if (pinInput.length in 4..6) { pin = pinInput; prefs.edit().putString("app_pin", pin).apply(); pinInput = ""; pinDialog = false } }) { Text("Save") } },
+                confirmButton = { TextButton(onClick = { if (pinInput.length in 4..6) { pinRecord = PinSecurity.createRecord(pinInput); hasPin = true; unlocked = true; prefs.edit().putString("app_pin_hash", pinRecord).remove("app_pin").apply(); pinInput = ""; pinDialog = false } }) { Text("Save") } },
                 dismissButton = { TextButton(onClick = { pinDialog = false; pinInput = "" }) { Text("Cancel") } }
             )
         }
