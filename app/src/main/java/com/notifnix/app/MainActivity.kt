@@ -35,7 +35,6 @@ import androidx.compose.material.icons.filled.PhoneInTalk
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -45,6 +44,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.Observer
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
@@ -201,7 +201,13 @@ class MainActivity : FragmentActivity() {
 private fun NotifnixApp(context: MainActivity, database: ScenarioDatabase) {
     val scope = rememberCoroutineScope()
     val history by database.scenarios().observeAll().collectAsStateWithLifecycle(initialValue = emptyList())
-    val scheduled by WorkManager.getInstance(context).getWorkInfosByTagLiveData("notifnix_scheduled").observeAsState(initial = emptyList())
+    var scheduled by remember { mutableStateOf<List<WorkInfo>>(emptyList()) }
+    DisposableEffect(context) {
+        val liveData = WorkManager.getInstance(context).getWorkInfosByTagLiveData("notifnix_scheduled")
+        val observer = Observer<List<WorkInfo>> { value -> scheduled = value ?: emptyList() }
+        liveData.observe(context, observer)
+        onDispose { liveData.removeObserver(observer) }
+    }
     val prefs = remember { context.getSharedPreferences(PREFS, Context.MODE_PRIVATE) }
     var selected by remember { mutableIntStateOf(0) }
     var caller by remember { mutableStateOf("Alex Morgan") }
@@ -370,8 +376,8 @@ private fun NotifnixApp(context: MainActivity, database: ScenarioDatabase) {
                     }
                     4 -> {
                         SectionTitle("Scheduled simulations", "Manage local reminders created from your scenario library.")
-                        val upcoming = scheduled.mapNotNull { work ->
-                            val scenarioId = work.tags.firstOrNull { it.startsWith("scenario_") }?.removePrefix("scenario_")
+                        val upcoming: List<Pair<WorkInfo, ScenarioEntity>> = scheduled.mapNotNull { work: WorkInfo ->
+                            val scenarioId: String? = work.tags.firstOrNull { tag -> tag.startsWith("scenario_") }?.removePrefix("scenario_")
                             val scenario = history.firstOrNull { it.id == scenarioId }
                             if (scenario == null) null else work to scenario
                         }.sortedBy { it.second.scheduledAt ?: Long.MAX_VALUE }
