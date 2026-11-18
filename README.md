@@ -13,10 +13,12 @@ Notifnix is an offline-first Android simulator for creating and previewing clear
 - **Notification Studio** — post a local Android test notification.
 - **Scenario Library** — persist scenarios in a Room database; search, edit, favorite, delete, and filter them.
 - **Scheduling** — choose a calendar date and time for a saved simulation notification using WorkManager; Android may defer execution under battery restrictions.
+- **Schedule manager** — view pending and completed scheduled simulations, cancel pending work, or reschedule from the original saved scenario. Scheduling a scenario again replaces its previous pending schedule.
 - **Template tools** — add a starter template pack and generate a random notification template.
 - **Backup and restore** — export scenario data as JSON through Android's share sheet, then import a JSON backup to merge scenarios into the local library.
 - **Dark appearance** — switch between light and dark color palettes.
 - **App PIN gate** — optional 4–6 digit PIN stored as a salted PBKDF2 hash, with automatic lock when the app leaves the foreground. This is a convenience gate, not hardware-backed encryption or a substitute for Android device security.
+- **Biometric unlock** — optional strong biometric authentication where supported by the device, with PIN fallback. Enable it in Settings after configuring a PIN and enrolling a supported biometric in Android settings.
 - **Privacy hardening** — Android automatic backup is disabled; users control when scenario data leaves the device through explicit JSON export.
 - **Unit tests** — CI verifies PIN hashing, verification, unique salts, and malformed-record rejection before building the APK.
 - **Legacy migration** — existing scenarios saved by the earlier SharedPreferences version are migrated into Room on first launch.
