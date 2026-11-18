@@ -12,7 +12,6 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -23,6 +22,8 @@ import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.PhoneInTalk
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -34,8 +35,13 @@ import androidx.compose.ui.unit.dp
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
-import org.json.JSONArray
-import org.json.JSONObject
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.work.Data
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
+import kotlinx.coroutines.launch
+import java.util.concurrent.TimeUnit
 
 private val Ink = Color(0xFF172033)
 private val Violet = Color(0xFF6657D9)
@@ -43,14 +49,14 @@ private val Canvas = Color(0xFFF5F6FB)
 private const val CHANNEL_ID = "notifnix_simulations"
 private const val PREFS = "notifnix_local"
 
-data class Scenario(val id: Long, val type: String, val title: String, val detail: String)
-
 class MainActivity : ComponentActivity() {
     private val askNotifications = registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
+    private val database by lazy { ScenarioDatabase.get(this) }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         createChannel()
-        setContent { MaterialTheme(colorScheme = lightColorScheme(primary = Violet, background = Canvas)) { NotifnixApp(this) } }
+        setContent { NotifnixApp(this, database) }
     }
 
     private fun createChannel() {
@@ -78,18 +84,34 @@ class MainActivity : ComponentActivity() {
             .setContentTitle("SIMULATED · $title")
             .setContentText(body)
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))
-            .setContentIntent(pending)
-            .setAutoCancel(true)
+            .setContentIntent(pending).setAutoCancel(true)
             .setCategory(NotificationCompat.CATEGORY_MESSAGE)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .build()
-        NotificationManagerCompat.from(this).notify((System.currentTimeMillis() % Int.MAX_VALUE).toInt(), notification)
+            .setPriority(NotificationCompat.PRIORITY_HIGH).build()
+        runCatching { NotificationManagerCompat.from(this).notify((System.currentTimeMillis() % Int.MAX_VALUE).toInt(), notification) }
+    }
+
+    fun schedule(item: ScenarioEntity) {
+        requestNotificationPermission()
+        val data = Data.Builder().putString("title", item.title).putString("detail", item.detail).build()
+        val request = OneTimeWorkRequestBuilder<ScenarioWorker>()
+            .setInputData(data).setInitialDelay(1, TimeUnit.MINUTES).build()
+        WorkManager.getInstance(this).enqueue(request)
+    }
+
+    fun exportScenarios(items: List<ScenarioEntity>) {
+        val json = org.json.JSONArray()
+        items.forEach { json.put(org.json.JSONObject().put("id", it.id).put("type", it.type).put("title", it.title).put("detail", it.detail).put("createdAt", it.createdAt).put("favorite", it.favorite)) }
+        val send = Intent(Intent.ACTION_SEND).apply { type = "application/json"; putExtra(Intent.EXTRA_SUBJECT, "Notifnix scenario backup"); putExtra(Intent.EXTRA_TEXT, json.toString(2)) }
+        startActivity(Intent.createChooser(send, "Export Notifnix backup"))
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun NotifnixApp(context: MainActivity) {
+private fun NotifnixApp(context: MainActivity, database: ScenarioDatabase) {
+    val scope = rememberCoroutineScope()
+    val history by database.scenarios().observeAll().collectAsStateWithLifecycle(initialValue = emptyList())
+    val prefs = remember { context.getSharedPreferences(PREFS, Context.MODE_PRIVATE) }
     var selected by remember { mutableIntStateOf(0) }
     var caller by remember { mutableStateOf("Alex Morgan") }
     var number by remember { mutableStateOf("+1 202 555 0148") }
@@ -97,110 +119,199 @@ private fun NotifnixApp(context: MainActivity) {
     var messageBody by remember { mutableStateOf("Hey! This is a sample test message.") }
     var notificationTitle by remember { mutableStateOf("Build complete") }
     var notificationBody by remember { mutableStateOf("Your test notification is ready.") }
-    var history by remember { mutableStateOf(loadScenarios(context)) }
     var showCallPreview by remember { mutableStateOf(false) }
+    var search by remember { mutableStateOf("") }
+    var favoritesOnly by remember { mutableStateOf(false) }
+    var darkMode by remember { mutableStateOf(prefs.getBoolean("dark_mode", false)) }
+    var pin by remember { mutableStateOf(prefs.getString("app_pin", "") ?: "") }
+    var unlocked by remember { mutableStateOf(pin.isBlank()) }
+    var pinInput by remember { mutableStateOf("") }
+    var pinDialog by remember { mutableStateOf(false) }
     var snackbar by remember { mutableStateOf("") }
-    val tabs = listOf("Call", "Messages", "Alerts", "Library")
+    var editingId by remember { mutableStateOf<String?>(null) }
+    val tabs = listOf("Call", "Messages", "Alerts", "Library", "Settings")
+    val palette = if (darkMode) darkColorScheme(primary = Color(0xFFB8AEFF), background = Color(0xFF101522), surface = Color(0xFF1A2232)) else lightColorScheme(primary = Violet, background = Canvas)
 
     fun save(type: String, title: String, detail: String) {
-        val item = Scenario(System.currentTimeMillis(), type, title, detail)
-        history = listOf(item) + history
-        persistScenarios(context, history)
-        snackbar = "$type simulation saved"
+        val existing = history.firstOrNull { it.id == editingId }
+        val item = ScenarioEntity(
+            id = editingId ?: java.util.UUID.randomUUID().toString(),
+            type = type, title = title.trim(), detail = detail.trim(),
+            createdAt = existing?.createdAt ?: System.currentTimeMillis(),
+            favorite = existing?.favorite ?: false
+        )
+        scope.launch { database.scenarios().upsert(item) }
+        editingId = null
+        snackbar = "Scenario saved to your private library"
+        selected = 3
     }
 
-    Scaffold(
-        containerColor = Canvas,
-        topBar = {
-            CenterAlignedTopAppBar(
-                title = { Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("notifnix", fontWeight = FontWeight.ExtraBold, color = Ink)
-                    Text("ONE APP. EVERY INTERACTION.", style = MaterialTheme.typography.labelSmall, color = Violet)
-                } },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Canvas)
-            )
-        },
-        bottomBar = {
-            NavigationBar(containerColor = Color.White) {
-                val icons = listOf(Icons.Default.Call, Icons.Default.Chat, Icons.Default.Notifications, Icons.Default.PhoneInTalk)
-                tabs.forEachIndexed { index, label ->
-                    NavigationBarItem(selected = selected == index, onClick = { selected = index }, icon = { Icon(icons[index], null) }, label = { Text(label) })
-                }
-            }
-        },
-    ) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 18.dp)) {
-            Spacer(Modifier.height(8.dp))
-            Surface(color = Color(0xFFECEAFF), shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(16.dp)) {
-                    Text("SIMULATION MODE", color = Violet, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
-                    Text("Create safe, local test experiences.", color = Ink, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Text("Nothing is sent to real people. Every item is marked simulated.", color = Color(0xFF596174), style = MaterialTheme.typography.bodySmall)
-                }
-            }
-            Spacer(Modifier.height(16.dp))
-            when (selected) {
-                0 -> {
-                    SectionTitle("Incoming call studio", "Preview a caller screen without placing a real call.")
-                    Field("Caller name", caller) { caller = it }
-                    Field("Phone number", number) { number = it }
-                    Spacer(Modifier.height(12.dp))
-                    Button(onClick = { showCallPreview = true; save("CALL", caller, number) }, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Default.Call, null); Spacer(Modifier.width(8.dp)); Text("Preview simulated call") }
-                    if (showCallPreview) {
-                        Spacer(Modifier.height(14.dp))
-                        CallPreview(caller, number, onClose = { showCallPreview = false })
+    MaterialTheme(colorScheme = palette) {
+        if (!unlocked) {
+            LockScreen(pinInput, { pinInput = it }, { if (pinInput == pin) { unlocked = true; pinInput = "" } else pinInput = "" })
+            return@MaterialTheme
+        }
+        Scaffold(
+            containerColor = palette.background,
+            topBar = {
+                CenterAlignedTopAppBar(
+                    title = { Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("notifnix", fontWeight = FontWeight.ExtraBold)
+                        Text("ONE APP. EVERY INTERACTION.", style = MaterialTheme.typography.labelSmall, color = Violet)
+                    } },
+                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = palette.background)
+                )
+            },
+            bottomBar = {
+                NavigationBar {
+                    val icons = listOf(Icons.Default.Call, Icons.Default.Chat, Icons.Default.Notifications, Icons.Default.PhoneInTalk, Icons.Default.Favorite)
+                    tabs.forEachIndexed { index, label ->
+                        NavigationBarItem(selected = selected == index, onClick = { selected = index }, icon = { Icon(icons[index], null) }, label = { Text(label) })
                     }
                 }
-                1 -> {
-                    SectionTitle("Message studio", "Compose a sample SMS-style conversation.")
-                    Field("Sender name", messageFrom) { messageFrom = it }
-                    Field("Message text", messageBody) { messageBody = it }
-                    Spacer(Modifier.height(12.dp))
-                    Surface(color = Color.White, shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
-                        Column(Modifier.padding(16.dp)) {
-                            Text("SIMULATED MESSAGE", color = Violet, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
-                            Text(messageFrom, fontWeight = FontWeight.Bold, color = Ink)
-                            Text(messageBody, color = Ink)
+            },
+            snackbarHost = { SnackbarHost(remember { SnackbarHostState() }) }
+        ) { padding ->
+            Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 18.dp)) {
+                Spacer(Modifier.height(8.dp))
+                Surface(color = if (darkMode) Color(0xFF282344) else Color(0xFFECEAFF), shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(16.dp)) {
+                        Text("SIMULATION MODE", color = Violet, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                        Text("Create safe, local test experiences.", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Text("Nothing is sent to real people. Every item is marked simulated.", style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+                Spacer(Modifier.height(16.dp))
+                when (selected) {
+                    0 -> {
+                        SectionTitle("Incoming call studio", "Preview a caller screen without placing a real call.")
+                        Field("Caller name", caller) { caller = it }
+                        Field("Phone number", number) { number = it }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Button(onClick = { showCallPreview = true; save("CALL", caller, number) }, modifier = Modifier.weight(1f)) { Icon(Icons.Default.Call, null); Spacer(Modifier.width(6.dp)); Text("Save & preview") }
+                            OutlinedButton(onClick = { caller = listOf("Jordan Lee", "Taylor Reed", "Casey Morgan", "Avery Parker").random(); number = "+1 202 555 01%02d".format((10..99).random()) }) { Text("Random") }
                         }
+                        if (showCallPreview) { Spacer(Modifier.height(14.dp)); CallPreview(caller, number) { showCallPreview = false } }
                     }
-                    Spacer(Modifier.height(12.dp))
-                    Button(onClick = { save("MESSAGE", messageFrom, messageBody) }, modifier = Modifier.fillMaxWidth()) { Text("Save message scenario") }
-                }
-                2 -> {
-                    SectionTitle("Notification studio", "Send a local test notification to this device.")
-                    Field("Notification title", notificationTitle) { notificationTitle = it }
-                    Field("Notification body", notificationBody) { notificationBody = it }
-                    Spacer(Modifier.height(12.dp))
-                    Button(onClick = { context.showTestNotification(notificationTitle, notificationBody); save("ALERT", notificationTitle, notificationBody) }, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Default.Notifications, null); Spacer(Modifier.width(8.dp)); Text("Show test notification") }
-                }
-                else -> {
-                    SectionTitle("Scenario library", "Your saved simulations stay on this device.")
-                    if (history.isEmpty()) EmptyState()
-                    LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        items(history, key = { it.id }) { item ->
-                            Surface(color = Color.White, shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
-                                Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    Column(Modifier.weight(1f)) {
-                                        Text(item.type + " · SIMULATED", color = Violet, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
-                                        Text(item.title, color = Ink, fontWeight = FontWeight.SemiBold)
-                                        Text(item.detail, color = Color(0xFF687084), style = MaterialTheme.typography.bodySmall)
+                    1 -> {
+                        SectionTitle("Message studio", "Compose a sample SMS-style conversation.")
+                        Field("Sender name", messageFrom) { messageFrom = it }
+                        Field("Message text", messageBody) { messageBody = it }
+                        MessagePreview(messageFrom, messageBody)
+                        Button(onClick = { save("MESSAGE", messageFrom, messageBody) }, modifier = Modifier.fillMaxWidth()) { Text(if (editingId == null) "Save message scenario" else "Update scenario") }
+                    }
+                    2 -> {
+                        SectionTitle("Notification studio", "Send a local test notification to this device.")
+                        Field("Notification title", notificationTitle) { notificationTitle = it }
+                        Field("Notification body", notificationBody) { notificationBody = it }
+                        Button(onClick = { context.showTestNotification(notificationTitle, notificationBody); save("ALERT", notificationTitle, notificationBody) }, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Default.Notifications, null); Spacer(Modifier.width(8.dp)); Text("Show test notification") }
+                    }
+                    3 -> {
+                        SectionTitle("Scenario library", "Search, edit, favorite, schedule, or export your saved scenarios.")
+                        OutlinedTextField(search, { search = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Search scenarios") })
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            FilterChip(selected = !favoritesOnly, onClick = { favoritesOnly = false }, label = { Text("All") })
+                            Spacer(Modifier.width(8.dp))
+                            FilterChip(selected = favoritesOnly, onClick = { favoritesOnly = true }, label = { Text("Favorites") })
+                            Spacer(Modifier.weight(1f))
+                            TextButton(onClick = { context.exportScenarios(history) }) { Text("Export backup") }
+                        }
+                        val visible = history.filter { (!favoritesOnly || it.favorite) && (it.title.contains(search, true) || it.detail.contains(search, true) || it.type.contains(search, true)) }
+                        if (visible.isEmpty()) EmptyState()
+                        LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 18.dp)) {
+                            items(visible, key = { it.id }) { item ->
+                                Surface(color = palette.surface, shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
+                                    Column(Modifier.padding(14.dp)) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Column(Modifier.weight(1f)) {
+                                                Text(item.type + " · SIMULATED", color = Violet, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                                                Text(item.title, fontWeight = FontWeight.SemiBold)
+                                                Text(item.detail, style = MaterialTheme.typography.bodySmall)
+                                            }
+                                            IconButton(onClick = { scope.launch { database.scenarios().upsert(item.copy(favorite = !item.favorite)) } }) { Icon(if (item.favorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder, "Favorite", tint = Violet) }
+                                            IconButton(onClick = { scope.launch { database.scenarios().delete(item.id) } }) { Icon(Icons.Default.Delete, "Delete") }
+                                        }
+                                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            TextButton(onClick = {
+                                                editingId = item.id
+                                                when (item.type) {
+                                                    "CALL" -> { caller = item.title; number = item.detail; selected = 0 }
+                                                    "MESSAGE" -> { messageFrom = item.title; messageBody = item.detail; selected = 1 }
+                                                    else -> { notificationTitle = item.title; notificationBody = item.detail; selected = 2 }
+                                                }
+                                            }) { Text("Edit") }
+                                            TextButton(onClick = { context.schedule(item); snackbar = "Scheduled for about one minute from now" }) { Text("Schedule · 1 min") }
+                                        }
                                     }
-                                    IconButton(onClick = { history = history.filterNot { it.id == item.id }; persistScenarios(context, history) }) { Icon(Icons.Default.Delete, "Delete scenario", tint = Color(0xFF8A91A2)) }
                                 }
                             }
                         }
                     }
+                    else -> {
+                        SectionTitle("Settings & tools", "Control privacy and personalize Notifnix.")
+                        SettingRow("Dark appearance", "Use a darker color palette") {
+                            Switch(checked = darkMode, onCheckedChange = { darkMode = it; prefs.edit().putBoolean("dark_mode", it).apply() })
+                        }
+                        SettingRow("App lock", if (pin.isBlank()) "Set a local PIN to protect this app" else "PIN protection is enabled") {
+                            TextButton(onClick = { pinInput = ""; pinDialog = true }) { Text(if (pin.isBlank()) "Set PIN" else "Change PIN") }
+                        }
+                        Button(onClick = { context.exportScenarios(history) }, modifier = Modifier.fillMaxWidth()) { Text("Export scenario backup") }
+                        OutlinedButton(onClick = {
+                            val examples = listOf(
+                                ScenarioEntity(java.util.UUID.randomUUID().toString(), "MESSAGE", "Delivery update", "Your sample order is out for delivery."),
+                                ScenarioEntity(java.util.UUID.randomUUID().toString(), "ALERT", "Calendar reminder", "Your demo appointment starts in 15 minutes."),
+                                ScenarioEntity(java.util.UUID.randomUUID().toString(), "CALL", "Unknown caller", "+1 202 555 0188")
+                            )
+                            scope.launch { database.scenarios().upsertAll(examples); selected = 3 }
+                        }, modifier = Modifier.fillMaxWidth()) { Text("Add sample template pack") }
+                        OutlinedButton(onClick = {
+                            val templates = listOf("Build complete" to "Your test build finished successfully.", "Reminder" to "This is a scheduled sample reminder.", "New message" to "You have a sample message waiting.")
+                            val sample = templates.random()
+                            notificationTitle = sample.first; notificationBody = sample.second; selected = 2
+                        }, modifier = Modifier.fillMaxWidth()) { Text("Random notification template") }
+                        Text("Notifnix stores scenarios locally. Export creates a shareable JSON backup; no account or cloud sync is used.", style = MaterialTheme.typography.bodySmall)
+                    }
                 }
+                Spacer(Modifier.height(12.dp))
+                Text(snackbar.ifBlank { "Offline-first • Private by design • No real calls or SMS" }, color = Color(0xFF7A8192), style = MaterialTheme.typography.labelSmall)
+                Spacer(Modifier.height(10.dp))
             }
-            Spacer(Modifier.height(20.dp))
-            Text("Offline-first • Private by design • No real calls or SMS", color = Color(0xFF7A8192), style = MaterialTheme.typography.labelSmall)
+        }
+        if (pinDialog) {
+            AlertDialog(
+                onDismissRequest = { pinDialog = false },
+                title = { Text(if (pin.isBlank()) "Set app PIN" else "Change app PIN") },
+                text = { OutlinedTextField(pinInput, { pinInput = it.filter(Char::isDigit).take(6) }, label = { Text("New 4–6 digit PIN") }, singleLine = true) },
+                confirmButton = { TextButton(onClick = { if (pinInput.length in 4..6) { pin = pinInput; prefs.edit().putString("app_pin", pin).apply(); pinInput = ""; pinDialog = false } }) { Text("Save") } },
+                dismissButton = { TextButton(onClick = { pinDialog = false; pinInput = "" }) { Text("Cancel") } }
+            )
         }
     }
 }
 
 @Composable
+private fun LockScreen(value: String, onValue: (String) -> Unit, unlock: () -> Unit) {
+    Column(Modifier.fillMaxSize().padding(28.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+        Text("Notifnix is locked", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+        Text("Enter your local app PIN to continue.")
+        Spacer(Modifier.height(16.dp))
+        OutlinedTextField(value, onValue, label = { Text("PIN") }, singleLine = true)
+        Spacer(Modifier.height(12.dp))
+        Button(onClick = unlock) { Text("Unlock") }
+    }
+}
+
+@Composable
+private fun SettingRow(title: String, subtitle: String, trailing: @Composable () -> Unit) {
+    Row(Modifier.fillMaxWidth().padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) { Text(title, fontWeight = FontWeight.SemiBold); Text(subtitle, style = MaterialTheme.typography.bodySmall) }
+        trailing()
+    }
+}
+
+@Composable
 private fun SectionTitle(title: String, subtitle: String) {
-    Text(title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = Ink)
+    Text(title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
     Text(subtitle, style = MaterialTheme.typography.bodySmall, color = Color(0xFF737B8E))
     Spacer(Modifier.height(14.dp))
 }
@@ -208,9 +319,20 @@ private fun SectionTitle(title: String, subtitle: String) {
 @Composable
 private fun Field(label: String, value: String, onValue: (String) -> Unit) {
     Column(Modifier.fillMaxWidth().padding(bottom = 10.dp)) {
-        Text(label, style = MaterialTheme.typography.labelMedium, color = Ink, fontWeight = FontWeight.SemiBold)
+        Text(label, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(5.dp))
         OutlinedTextField(value = value, onValueChange = onValue, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp), singleLine = label != "Message text" && label != "Notification body")
+    }
+}
+
+@Composable
+private fun MessagePreview(sender: String, body: String) {
+    Surface(color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+        Column(Modifier.padding(16.dp)) {
+            Text("SIMULATED MESSAGE", color = Violet, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+            Text(sender, fontWeight = FontWeight.Bold)
+            Text(body)
+        }
     }
 }
 
@@ -227,7 +349,7 @@ private fun CallPreview(name: String, phone: String, onClose: () -> Unit) {
             Text(name, color = Color.White, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
             Text(phone, color = Color(0xFFCFD3E0))
             Spacer(Modifier.height(22.dp))
-            Button(onClick = onClose, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E9D69))) { Text("End preview") }
+            Button(onClick = onClose) { Text("End preview") }
         }
     }
 }
@@ -235,23 +357,6 @@ private fun CallPreview(name: String, phone: String, onClose: () -> Unit) {
 @Composable
 private fun EmptyState() {
     Box(Modifier.fillMaxWidth().padding(30.dp), contentAlignment = Alignment.Center) {
-        Text("No scenarios saved yet. Create one from any studio.", color = Color(0xFF737B8E))
+        Text("No matching scenarios yet. Create one from any studio.")
     }
-}
-
-private fun loadScenarios(context: Context): List<Scenario> = runCatching {
-    val raw = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString("scenarios", "[]") ?: "[]"
-    val array = JSONArray(raw)
-    (0 until array.length()).map { i ->
-        val o = array.getJSONObject(i)
-        Scenario(o.getLong("id"), o.getString("type"), o.getString("title"), o.getString("detail"))
-    }
-}.getOrDefault(emptyList())
-
-private fun persistScenarios(context: Context, items: List<Scenario>) {
-    val array = JSONArray()
-    items.forEach { item ->
-        array.put(JSONObject().put("id", item.id).put("type", item.type).put("title", item.title).put("detail", item.detail))
-    }
-    context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString("scenarios", array.toString()).apply()
 }
