@@ -8,8 +8,8 @@ Notifnix is an offline-first Android simulator for creating and previewing clear
 
 ## Features
 
-- **Call Studio** — build a caller preview and generate sample caller details.
-- **Message Studio** — compose and preview SMS-style sample messages.
+- **Call Studio** — build a caller preview and generate sample caller details; the separate dialer handoff accepts international E.164 numbers (`+` + country calling code + subscriber number).
+- **Message Studio** — compose and preview SMS-style sample messages; the separate SMS-app handoff accepts international E.164 destinations.
 - **Notification Studio** — post a local Android test notification.
 - **Scenario Library** — persist scenarios in a Room database; search, edit, favorite, delete, and filter them.
 - **Scheduling** — choose a calendar date and time for a saved simulation notification using WorkManager; Android may defer execution under battery restrictions.
@@ -48,4 +48,4 @@ The CI workflow always produces a debug APK. If all four protected GitHub Action
 
 ## Privacy and platform limits
 
-Notifnix intentionally avoids SMS, call-log, contacts, and default-dialer permissions. Call and message screens are previews inside Notifnix, not system-level incoming calls or real SMS. Scheduled notifications are local and depend on Android notification permission and background execution policy. Scenario data stays in the app's local Room database unless the user explicitly exports it.
+Notifnix intentionally avoids SMS, call-log, contacts, and default-dialer permissions. Call and message screens remain local previews. The optional **Open dialer** and **Open SMS app to send** actions hand an E.164 international destination (`+` followed by country calling code and number) to the user's installed phone app; the user must confirm the call or send. Actual reachability, international access, sender identity, and charges are controlled by the user's carrier and plan. This is not a cloud/global telecom gateway and does not spoof sender IDs. Scheduled notifications are local and depend on Android notification permission and background execution policy. Scenario data stays in the app's local Room database unless the user explicitly exports it.
