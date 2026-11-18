@@ -4,45 +4,43 @@
 
 Notifnix is an offline-first Android simulator for creating and previewing clearly labelled test calls, SMS-style messages, and app-style notifications.
 
-> **Safety by design:** Notifnix creates local simulations only. It does not place real calls, send SMS messages, impersonate a real service, or write fake messages into the device's system SMS inbox or call history. Every saved scenario is labelled **SIMULATED**.
+> **Safety by design:** Notifnix creates local simulations only. It does not place real calls, send SMS messages, impersonate a real service, or write fake messages into the device's system SMS inbox or call history. Every generated notification and saved scenario is labelled **SIMULATED**.
 
-## Current MVP
+## Features
 
-- **Call Studio** — enter a caller name and number, then preview a simulated incoming-call screen inside the app.
-- **Message Studio** — compose and preview an SMS-style sample message.
-- **Notification Studio** — create a local Android test notification.
-- **Scenario Library** — save and delete scenarios locally on the device.
-- **Permission-aware notifications** — requests Android 13+ notification permission when a test notification is requested.
-- **Offline-first** — no account, analytics, backend, or API key required.
+- **Call Studio** — build a caller preview and generate sample caller details.
+- **Message Studio** — compose and preview SMS-style sample messages.
+- **Notification Studio** — post a local Android test notification.
+- **Scenario Library** — persist scenarios in a Room database; search, edit, favorite, delete, and filter them.
+- **Scheduling** — schedule a saved simulation notification using WorkManager (currently a one-minute test delay; Android may defer execution under battery restrictions).
+- **Template tools** — add a starter template pack and generate a random notification template.
+- **Backup export** — export scenario data as JSON through Android's share sheet. Import is not implemented yet.
+- **Dark appearance** — switch between light and dark color palettes.
+- **App PIN gate** — optional 4–6 digit local PIN screen. This is a convenience gate, not hardware-backed encryption or a substitute for Android device security.
+- **Legacy migration** — existing scenarios saved by the earlier SharedPreferences version are migrated into Room on first launch.
+- **Android CI** — GitHub Actions builds a debug APK on pushes, pull requests, and manual dispatch.
 
-## Technology
+## Build
 
-- Kotlin
-- Jetpack Compose + Material 3
-- Android notification channels and AndroidX notification compatibility
-- SharedPreferences for local scenario storage
-- Minimum Android version: 8.0 (API 26)
+- Kotlin + Jetpack Compose + Material 3
+- Room 2.6.1 + KSP
+- WorkManager 2.10.0
+- Minimum Android: 8.0 (API 26)
 - Compile/target SDK: 35
-- JDK 17 recommended
+- JDK 17; Gradle 8.9
 
-## Open and run
+Open the project root in Android Studio and sync Gradle, or run:
 
-1. Clone this repository.
-2. Open the project root in Android Studio.
-3. Allow Gradle sync to complete.
-4. Run the app configuration on an Android device or emulator.
-5. To test notifications on Android 13+, grant the notification permission when prompted.
+```bash
+gradle --no-daemon assembleDebug
+```
 
-The repository currently contains the Android source and Gradle project configuration. A generated Gradle wrapper and a verified APK/release build have not yet been added.
+The GitHub Actions workflow uploads `app-debug.apk` as the `notifnix-debug-apk` artifact when the build succeeds. The APK can be downloaded from the workflow run's **Artifacts** section.
 
-## Planned next
+## Release signing
 
-- Scheduled scenarios and a scenario editor
-- More caller/message/notification templates
-- Configurable notification app labels and categories
-- Optional ringtone and vibration preview controls
-- Export/import of scenario presets
+The CI workflow currently produces a debug APK. A distributable signed release requires a private keystore and signing credentials supplied as protected GitHub Actions secrets. Do not commit keystores or passwords to this repository. A signed release has not been configured or verified yet.
 
 ## Privacy and platform limits
 
-Notifnix intentionally avoids SMS, call-log, contacts, and default-dialer permissions. Android restricts full-screen intents and telecom integration; this MVP previews calls inside the app instead of pretending to place a real phone call or bypassing system restrictions.
+Notifnix intentionally avoids SMS, call-log, contacts, and default-dialer permissions. Call and message screens are previews inside Notifnix, not system-level incoming calls or real SMS. Scheduled notifications are local and depend on Android notification permission and background execution policy. Scenario data stays in the app's local Room database unless the user explicitly exports it.
