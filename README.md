@@ -49,3 +49,20 @@ The CI workflow always produces a debug APK. If all four protected GitHub Action
 ## Privacy and platform limits
 
 Notifnix intentionally avoids SMS, call-log, contacts, and default-dialer permissions. Call and message screens remain local previews. The optional **Open dialer** and **Open SMS app to send** actions hand an E.164 international destination (`+` followed by country calling code and number) to the user's installed phone app; the user must confirm the call or send. Actual reachability, international access, sender identity, and charges are controlled by the user's carrier and plan. This is not a cloud/global telecom gateway and does not spoof sender IDs. Scheduled notifications are local and depend on Android notification permission and background execution policy. Scenario data stays in the app's local Room database unless the user explicitly exports it.
+
+
+## Optional global SMS and voice backend (Twilio)
+
+Notifnix includes optional Vercel Node.js endpoints for provider-backed international SMS and outbound voice calls. Deploy the repository to Vercel with the project root set to the repository root. Add these environment variables in Vercel Project Settings → Environment Variables (never commit real values):
+
+- `NOTIFNIX_API_TOKEN`: a long random private token that you generate and enter in Notifnix Settings.
+- `TWILIO_ACCOUNT_SID`: your Twilio Account SID.
+- `TWILIO_AUTH_TOKEN`: your Twilio Auth Token.
+- `TWILIO_FROM_NUMBER`: a Twilio phone number or verified outgoing caller ID in E.164 format. Required for voice and for SMS if no Messaging Service is configured.
+- `TWILIO_MESSAGING_SERVICE_SID`: optional Messaging Service SID (starts with `MG`); if set, it is used for SMS sender selection instead of `TWILIO_FROM_NUMBER`.
+
+Redeploy after setting the variables. Open `https://YOUR-VERCEL-DOMAIN/api/health` to check configuration, then in Notifnix → Settings → Global communications enter the HTTPS backend URL, paste the API token, and test the backend. The token is held in memory by the app and must be entered again after restarting it.
+
+The app sends explicit consent flags with every provider request. Use the cloud-call button only for recipients you are authorized to call, and the cloud-SMS button only when the recipient has agreed to receive the message. Twilio may require verified destination numbers on trial accounts, enabled destination-country geo permissions, approved sender registration, and sufficient account balance. International rates and country-specific restrictions apply. Twilio's API acceptance status is not proof that a call connected or an SMS was delivered; check the provider console/status callbacks for final outcomes. Do not use this feature for unsolicited or bulk messaging.
+
+This integration does not spoof caller ID. The voice caller ID must be a Twilio number or an outgoing caller ID verified on your Twilio account. It does not include a free global telecom service; provider usage can be charged.
