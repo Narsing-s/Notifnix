@@ -356,7 +356,7 @@ private fun NotifnixApp(context: MainActivity, database: ScenarioDatabase) {
                                                 Text(item.detail, style = MaterialTheme.typography.bodySmall)
                                             }
                                             IconButton(onClick = { scope.launch { database.scenarios().upsert(item.copy(favorite = !item.favorite)) } }) { Icon(if (item.favorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder, "Favorite", tint = Violet) }
-                                            IconButton(onClick = { scope.launch { database.scenarios().delete(item.id) } }) { Icon(Icons.Default.Delete, "Delete") }
+                                            IconButton(onClick = { scope.launch { WorkManager.getInstance(context).cancelUniqueWork("notifnix_" + item.id); database.scenarios().delete(item.id) } }) { Icon(Icons.Default.Delete, "Delete") }
                                         }
                                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                             TextButton(onClick = {
@@ -398,7 +398,7 @@ private fun NotifnixApp(context: MainActivity, database: ScenarioDatabase) {
                                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                                 TextButton(onClick = { context.schedule(scenario) }) { Text("Reschedule") }
                                                 if (canCancel) TextButton(onClick = {
-                                                    WorkManager.getInstance(context).cancelWorkById(work.id)
+                                                    scope.launch { WorkManager.getInstance(context).cancelWorkById(work.id); database.scenarios().clearScheduledAt(scenario.id) }
                                                 }) { Text("Cancel") }
                                             }
                                         }
