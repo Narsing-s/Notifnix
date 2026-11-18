@@ -12,9 +12,9 @@ Notifnix is an offline-first Android simulator for creating and previewing clear
 - **Message Studio** — compose and preview SMS-style sample messages.
 - **Notification Studio** — post a local Android test notification.
 - **Scenario Library** — persist scenarios in a Room database; search, edit, favorite, delete, and filter them.
-- **Scheduling** — schedule a saved simulation notification using WorkManager (currently a one-minute test delay; Android may defer execution under battery restrictions).
+- **Scheduling** — choose a calendar date and time for a saved simulation notification using WorkManager; Android may defer execution under battery restrictions.
 - **Template tools** — add a starter template pack and generate a random notification template.
-- **Backup export** — export scenario data as JSON through Android's share sheet. Import is not implemented yet.
+- **Backup and restore** — export scenario data as JSON through Android's share sheet, then import a JSON backup to merge scenarios into the local library.
 - **Dark appearance** — switch between light and dark color palettes.
 - **App PIN gate** — optional 4–6 digit local PIN screen. This is a convenience gate, not hardware-backed encryption or a substitute for Android device security.
 - **Legacy migration** — existing scenarios saved by the earlier SharedPreferences version are migrated into Room on first launch.
@@ -39,7 +39,7 @@ The GitHub Actions workflow uploads `app-debug.apk` as the `notifnix-debug-apk` 
 
 ## Release signing
 
-The CI workflow currently produces a debug APK. A distributable signed release requires a private keystore and signing credentials supplied as protected GitHub Actions secrets. Do not commit keystores or passwords to this repository. A signed release has not been configured or verified yet.
+The CI workflow always produces a debug APK. If all four protected GitHub Actions secrets are configured — `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, and `ANDROID_KEY_PASSWORD` — it also builds and uploads a signed release APK. Store the Base64-encoded keystore and credentials as repository Actions secrets; never commit keystores or passwords. Without those secrets, the signed-release step is skipped.
 
 ## Privacy and platform limits
 
