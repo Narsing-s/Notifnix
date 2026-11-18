@@ -1,76 +1,54 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#090d18">
-  <meta name="description" content="Notifnix — one app for simulated interactions, scheduled alerts, and provider-backed communications.">
-  <title>Notifnix — One App. Every Interaction.</title>
-  <style>
-    :root{color-scheme:dark;--bg:#090d18;--panel:#111a2b;--line:#25334b;--muted:#9eacc3;--text:#f4f7ff;--cyan:#70e1f5;--violet:#9b8cff;--green:#5ee0a0}
-    *{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 78% 8%,#22234c 0,transparent 34%),radial-gradient(ellipse at 8% 42%,#103448 0,transparent 28%),var(--bg);font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial;color:var(--text);min-height:100vh}
-    a{color:inherit;text-decoration:none}.wrap{max-width:1120px;margin:auto;padding:28px 24px 56px}.nav{display:flex;align-items:center;justify-content:space-between;gap:18px}.brand{display:flex;align-items:center;gap:12px;font-weight:800;letter-spacing:.2px}.mark{width:42px;height:42px;border-radius:14px;display:grid;place-items:center;background:linear-gradient(135deg,var(--cyan),var(--violet));color:#09111d;font-size:22px;box-shadow:0 8px 30px #70e1f533}.navlinks{display:flex;gap:22px;color:var(--muted);font-size:14px}.navlinks a:hover{color:var(--text)}
-    .hero{padding:92px 0 66px;max-width:760px}.eyebrow{display:inline-flex;align-items:center;gap:8px;border:1px solid #3b4962;background:#111a2b99;padding:8px 12px;border-radius:99px;color:#c8d5eb;font-size:12px;letter-spacing:.12em;text-transform:uppercase}.dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 12px var(--green)}h1{font-size:clamp(44px,7vw,76px);line-height:1.02;letter-spacing:-.055em;margin:22px 0 18px}h1 span{background:linear-gradient(90deg,var(--cyan),#b2a5ff);background-clip:text;color:transparent}.lead{color:#b4c0d4;font-size:18px;line-height:1.7;max-width:650px;margin:0}.actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:30px}.btn{border:1px solid var(--line);border-radius:12px;padding:12px 17px;font-weight:650;font-size:14px;display:inline-flex;align-items:center;gap:9px;background:#121c2e}.btn.primary{background:linear-gradient(100deg,#70e1f5,#a69aff);color:#09111d;border:0}.btn:hover{transform:translateY(-1px)}
-    .sectionhead{display:flex;justify-content:space-between;align-items:end;gap:18px;margin:12px 0 18px}.sectionhead h2{font-size:22px;margin:0}.sectionhead p{margin:0;color:var(--muted);font-size:13px}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}.card{background:linear-gradient(145deg,#141f33ed,#0e1625ed);border:1px solid var(--line);border-radius:18px;padding:22px;min-height:170px}.ico{width:40px;height:40px;border-radius:12px;background:#202d46;display:grid;place-items:center;font-size:20px;margin-bottom:17px}.card h3{font-size:16px;margin:0 0 8px}.card p{font-size:13px;line-height:1.65;color:var(--muted);margin:0}
-    .status{margin-top:34px;border:1px solid var(--line);background:#10192aee;border-radius:20px;padding:22px;display:flex;align-items:center;justify-content:space-between;gap:18px;flex-wrap:wrap}.statusleft{display:flex;align-items:center;gap:14px}.statusicon{width:44px;height:44px;border-radius:14px;background:#173b35;display:grid;place-items:center;color:var(--green);font-size:21px}.status h2{font-size:16px;margin:0 0 4px}.status p{font-size:13px;color:var(--muted);margin:0}.state{font-size:12px;color:#c3d0e4;border:1px solid var(--line);border-radius:99px;padding:8px 12px}.state.ok{color:var(--green);border-color:#28694f}.state.warn{color:#ffd27b;border-color:#6b542b}.foot{display:flex;justify-content:space-between;gap:16px;color:#78869e;font-size:12px;margin-top:42px;padding-top:20px;border-top:1px solid #1e2a3e}
-    @media(max-width:760px){.grid{grid-template-columns:1fr}.hero{padding:68px 0 48px}.navlinks{gap:12px}.navlinks a:nth-child(2){display:none}.wrap{padding:20px 17px 38px}.foot{flex-direction:column}}
-  </style>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#080d18">
+<meta name="description" content="Notifnix — secure web console for provider-backed voice calls and SMS.">
+<title>Notifnix — One App. Every Interaction.</title>
+<style>
+:root{color-scheme:dark;--bg:#080d18;--panel:#111a2b;--panel2:#0d1524;--line:#263650;--muted:#9baac2;--text:#f4f7ff;--cyan:#70e1f5;--violet:#a99bff;--green:#61dfa2;--red:#ff8585;--amber:#ffd27b}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 78% 0,#25244c 0,transparent 36%),radial-gradient(ellipse at 8% 40%,#103447 0,transparent 30%),var(--bg);font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial;color:var(--text)}
+a{color:inherit;text-decoration:none}button,input,textarea{font:inherit}.wrap{max-width:1120px;margin:auto;padding:25px 22px 52px}.nav{display:flex;align-items:center;justify-content:space-between;gap:18px}.brand{display:flex;align-items:center;gap:11px;font-weight:850;letter-spacing:.2px}.mark{width:40px;height:40px;border-radius:13px;display:grid;place-items:center;background:linear-gradient(135deg,var(--cyan),var(--violet));color:#08111d;font-size:22px}.navlinks{display:flex;gap:20px;color:var(--muted);font-size:13px}.navlinks a:hover{color:white}
+.hero{padding:55px 0 35px;max-width:790px}.eyebrow{display:inline-flex;align-items:center;gap:8px;border:1px solid #3b4962;background:#111a2b99;padding:7px 11px;border-radius:99px;color:#c8d5eb;font-size:11px;letter-spacing:.12em;text-transform:uppercase}.pulse{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 12px var(--green)}h1{font-size:clamp(39px,6vw,66px);line-height:1.02;letter-spacing:-.055em;margin:18px 0 13px}h1 span{background:linear-gradient(90deg,var(--cyan),#b2a5ff);background-clip:text;color:transparent}.lead{color:#b4c0d4;font-size:16px;line-height:1.7;max-width:670px;margin:0}
+.panel{background:linear-gradient(145deg,#141f33ed,#0e1625ed);border:1px solid var(--line);border-radius:19px;padding:22px;margin-top:17px}.panelhead{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}.panelhead h2{font-size:17px;margin:0}.hint{font-size:12px;color:var(--muted);line-height:1.5}.pill{border:1px solid var(--line);border-radius:99px;padding:6px 10px;color:var(--muted);font-size:11px}.pill.ok{color:var(--green);border-color:#28694f}.pill.warn{color:var(--amber);border-color:#6b542b}
+label{display:block;font-size:12px;color:#c4d0e2;margin:0 0 7px}.field{width:100%;background:#091220;border:1px solid #2b3b55;border-radius:11px;color:var(--text);padding:12px 13px;outline:none}.field:focus{border-color:var(--cyan);box-shadow:0 0 0 3px #70e1f51a}.field::placeholder{color:#687891}textarea.field{min-height:110px;resize:vertical}.grid2{display:grid;grid-template-columns:1fr 1fr;gap:13px}.fieldgroup{margin-bottom:14px}.secretrow{display:flex;gap:10px}.secretrow .field{flex:1}.smallbtn,.tab,.primary,.secondary{cursor:pointer;border:1px solid var(--line);border-radius:11px;padding:11px 14px;color:var(--text);background:#17243a;font-weight:650;font-size:13px}.smallbtn:hover,.secondary:hover,.tab:hover{border-color:#57708f}.primary{background:linear-gradient(100deg,#70e1f5,#a69aff);color:#09111d;border:0}.primary:disabled,.smallbtn:disabled{opacity:.5;cursor:wait}.secondary{background:#17243a}.tabs{display:flex;gap:8px;flex-wrap:wrap;margin:18px 0 0}.tab{background:transparent;color:var(--muted)}.tab.active{background:#1b2b43;color:var(--text);border-color:#57708f}.formactions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.check{display:flex;align-items:flex-start;gap:9px;color:#b8c5d8;font-size:12px;line-height:1.5;margin:13px 0 17px}.check input{margin-top:2px;accent-color:#70e1f5}.message{padding:12px 14px;border-radius:11px;background:#111d30;border:1px solid var(--line);color:#c8d5e8;font-size:13px;line-height:1.55;margin-top:13px;display:none;overflow-wrap:anywhere}.message.show{display:block}.message.error{border-color:#743d48;color:#ffb1b1}.message.success{border-color:#28694f;color:#a5f2c9}
+.statusrow{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.statuscopy{font-size:13px;color:var(--muted);line-height:1.6}.statuscopy strong{color:var(--text)}.tracker{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:end}.foot{display:flex;justify-content:space-between;gap:14px;color:#78869e;font-size:11px;margin-top:34px;padding-top:18px;border-top:1px solid #1e2a3e}
+@media(max-width:700px){.wrap{padding:18px 15px 36px}.hero{padding:42px 0 25px}.grid2{grid-template-columns:1fr}.navlinks{gap:12px}.navlinks a:first-child{display:none}.panel{padding:17px}.foot{flex-direction:column}.tracker{grid-template-columns:1fr}}
+</style>
 </head>
-<body>
-  <main class="wrap">
-    <nav class="nav" aria-label="Main navigation">
-      <a class="brand" href="/"><span class="mark">N</span><span>Notifnix</span></a>
-      <div class="navlinks"><a href="#features">Features</a><a href="#status">Backend status</a><a href="https://github.com/Narsing-s/Notifnix" target="_blank" rel="noreferrer">GitHub ↗</a></div>
-    </nav>
-    <section class="hero">
-      <div class="eyebrow"><span class="dot"></span> Communication platform</div>
-      <h1>One App.<br><span>Every Interaction.</span></h1>
-      <p class="lead">A unified Android workspace for call and message scenarios, scheduled alerts, and provider-backed global communications — with delivery status tracking.</p>
-      <div class="actions">
-        <a class="btn primary" href="#status">Check backend status <span aria-hidden="true">→</span></a>
-        <a class="btn" href="https://github.com/Narsing-s/Notifnix" target="_blank" rel="noreferrer">View source code ↗</a>
-      </div>
-    </section>
-    <section id="features">
-      <div class="sectionhead"><h2>Built for every interaction</h2><p>Notifnix Android app capabilities</p></div>
-      <div class="grid">
-        <article class="card"><div class="ico">☎</div><h3>Call Studio</h3><p>Prepare call scenarios and use provider-backed voice calling with call status refresh.</p></article>
-        <article class="card"><div class="ico">✉</div><h3>Messages</h3><p>Create message scenarios, open your SMS app, or use configured provider SMS with delivery tracking.</p></article>
-        <article class="card"><div class="ico">◷</div><h3>Schedules & alerts</h3><p>Schedule local notifications, organize saved scenarios, and review activity in one place.</p></article>
-      </div>
-    </section>
-    <section id="status" class="status" aria-live="polite">
-      <div class="statusleft"><div class="statusicon">✓</div><div><h2>Notifnix backend</h2><p id="statusText">Checking backend configuration…</p></div></div>
-      <span class="state" id="statusBadge">Checking</span>
-      <a class="btn" href="/api/health" target="_blank" rel="noreferrer">View health response ↗</a>
-    </section>
-    <footer class="foot"><span>© <span id="year"></span> Notifnix</span><span>Secure provider credentials stay on the server. Test calls and messages only with recipient permission.</span></footer>
-  </main>
-  <script>
-    document.getElementById("year").textContent = new Date().getFullYear();
-    fetch("/api/health", { headers: { "Accept": "application/json" } })
-      .then(async response => {
-        if (!response.ok) throw new Error("Health endpoint returned HTTP " + response.status);
-        return response.json();
-      })
-      .then(data => {
-        const badge = document.getElementById("statusBadge");
-        const message = document.getElementById("statusText");
-        if (data.configured) {
-          badge.textContent = "Configuration detected";
-          badge.className = "state ok";
-          message.textContent = "Backend is responding. SMS: " + (data.smsConfigured ? "configured" : "not configured") + " · Voice: " + (data.voiceConfigured ? "configured" : "not configured") + ". No test call or message was sent.";
-        } else {
-          badge.textContent = "Setup incomplete";
-          badge.className = "state warn";
-          message.textContent = data.message || "Backend is responding, but provider configuration is incomplete.";
-        }
-      })
-      .catch(error => {
-        document.getElementById("statusBadge").textContent = "Check failed";
-        document.getElementById("statusBadge").className = "state warn";
-        document.getElementById("statusText").textContent = "Could not reach /api/health. Check the deployment and function logs.";
-      });
-  </script>
-</body>
-</html>
+<body><main class="wrap">
+<nav class="nav"><a class="brand" href="/"><span class="mark">N</span><span>Notifnix</span></a><div class="navlinks"><a href="#studio">Communication studio</a><a href="#tracking">Tracking</a><a href="https://github.com/Narsing-s/Notifnix" target="_blank" rel="noreferrer">GitHub ↗</a></div></nav>
+<header class="hero"><div class="eyebrow"><span class="pulse"></span> Secure communications console</div><h1>One App.<br><span>Every Interaction.</span></h1><p class="lead">Send an SMS or start a voice call through your configured Twilio account. Track provider status from this browser dashboard.</p></header>
+<section class="panel" aria-labelledby="configTitle"><div class="panelhead"><h2 id="configTitle">Backend connection</h2><span id="healthBadge" class="pill">Checking…</span></div><div class="grid2"><div class="fieldgroup"><label for="apiBase">Vercel backend URL</label><input id="apiBase" class="field" type="url" placeholder="https://your-project.vercel.app" autocomplete="url"></div><div class="fieldgroup"><label for="apiToken">Notifnix API token</label><div class="secretrow"><input id="apiToken" class="field" type="password" placeholder="Paste your NOTIFNIX_API_TOKEN" autocomplete="off"><button class="smallbtn" id="toggleToken" type="button">Show</button></div></div></div><div class="statusrow"><span class="hint">Token is held in this page session only and sent in the Authorization header. Twilio credentials remain on Vercel.</span><button class="secondary" id="checkHealth" type="button">Check connection</button></div><div id="healthMessage" class="message"></div></section>
+<section id="studio" class="panel"><div class="panelhead"><h2>Communication studio</h2><span class="pill">Provider-backed</span></div><div class="tabs" role="tablist" aria-label="Communication type"><button class="tab active" id="smsTab" role="tab" aria-selected="true" type="button">✉ Messages</button><button class="tab" id="callTab" role="tab" aria-selected="false" type="button">☎ Call Studio</button></div>
+<div id="smsPanel" role="tabpanel" style="padding-top:20px"><div class="grid2"><div class="fieldgroup"><label for="smsTo">Recipient mobile number</label><input id="smsTo" class="field" type="tel" placeholder="+919876543210" autocomplete="tel"></div><div class="fieldgroup"><label for="smsFromInfo">Sender identity</label><input id="smsFromInfo" class="field" value="Your configured Twilio sender" disabled></div></div><div class="fieldgroup"><label for="smsBody">Message</label><textarea id="smsBody" class="field" maxlength="1500" placeholder="Write your SMS (maximum 1500 characters)…"></textarea><div class="hint" id="smsCount">0 / 1500 characters</div></div><label class="check"><input id="smsConsent" type="checkbox"><span>I confirm the recipient has agreed to receive this message and this is not unsolicited or abusive messaging.</span></label><div class="formactions"><button class="primary" id="sendSms" type="button">Send SMS</button><span class="hint">The provider may charge for each message. Delivery is not guaranteed until status confirms it.</span></div><div id="smsResult" class="message" aria-live="polite"></div></div>
+<div id="callPanel" role="tabpanel" hidden style="padding-top:20px"><div class="grid2"><div class="fieldgroup"><label for="callTo">Recipient mobile number</label><input id="callTo" class="field" type="tel" placeholder="+919876543210" autocomplete="tel"></div><div class="fieldgroup"><label for="callFromInfo">Caller ID</label><input id="callFromInfo" class="field" value="Your configured Twilio number" disabled></div></div><div class="fieldgroup"><label>Voice message</label><div class="field" style="color:#b4c0d4">“Hello. This is a voice call placed using Notifnix. Goodbye.”</div><p class="hint">This is the currently configured fixed voice prompt. Caller ID must be a Twilio-owned or verified outgoing number.</p></div><label class="check"><input id="callConsent" type="checkbox"><span>I confirm I am authorized to call this recipient and have their consent where required.</span></label><div class="formactions"><button class="primary" id="placeCall" type="button">Place voice call</button><span class="hint">Calls may incur charges. A queued call is not proof that the recipient answered.</span></div><div id="callResult" class="message" aria-live="polite"></div></div>
+</section>
+<section id="tracking" class="panel"><div class="panelhead"><h2>Delivery & call tracking</h2><span class="pill">Twilio status lookup</span></div><p class="hint">After a request is accepted, its SID is retained in this page until you close or refresh it. You can refresh its latest provider status below.</p><div class="tracker"><div class="fieldgroup" style="margin:0"><label for="trackSid">Message SID or Call SID</label><input id="trackSid" class="field" placeholder="SM… / MM… for SMS, CA… for call"></div><div class="formactions"><button class="secondary" id="trackSms" type="button">Refresh SMS</button><button class="secondary" id="trackCall" type="button">Refresh call</button></div></div><div id="trackResult" class="message" aria-live="polite"></div></section>
+<footer class="foot"><span>© <span id="year"></span> Notifnix · One App. Every Interaction.</span><span>Use only with recipient consent. Respect local telecom laws, opt-outs and provider rules.</span></footer>
+</main>
+<script>
+(() => {
+ const $ = id => document.getElementById(id);
+ const state = { base: "", token: "", lastSid: "", lastKind: "" };
+ $("year").textContent = new Date().getFullYear();
+ function baseUrl(){ const raw=$("apiBase").value.trim(); if(!raw) throw new Error("Enter your deployed Vercel backend URL."); let u; try{u=new URL(raw)}catch{throw new Error("Enter a valid backend URL, including https://.");} if(u.protocol!=="https:" && u.hostname!=="localhost") throw new Error("Use an HTTPS backend URL."); return u.origin; }
+ function authHeaders(){ const token=$("apiToken").value.trim(); if(!token) throw new Error("Enter your Notifnix API token."); return {"Authorization":"Bearer "+token,"Content-Type":"application/json","Accept":"application/json"}; }
+ async function request(path, options={}){ const base=baseUrl(); const response=await fetch(base+path,{...options,headers:{...authHeaders(),...(options.headers||{})}}); let data={}; try{data=await response.json()}catch{} if(!response.ok) throw new Error(data.error || ("Request failed (HTTP "+response.status+").")); return data; }
+ function show(id,text,type=""){const el=$(id);el.textContent=text;el.className="message show"+(type?" "+type:"");}
+ function clear(id){const el=$(id);el.textContent="";el.className="message";}
+ function validNumber(value){return /^\+[1-9]\d{7,14}$/.test(value.trim());}
+ function setBusy(id,busy,label){const b=$(id);if(busy){b.dataset.label=b.textContent;b.textContent=label;b.disabled=true}else{b.textContent=b.dataset.label||label;b.disabled=false}}
+ $("toggleToken").addEventListener("click",()=>{const field=$("apiToken");field.type=field.type==="password"?"text":"password";$("toggleToken").textContent=field.type==="password"?"Show":"Hide";});
+ $("checkHealth").addEventListener("click",async()=>{const badge=$("healthBadge");badge.textContent="Checking…";badge.className="pill";clear("healthMessage");try{const response=await fetch(baseUrl()+"/api/health");const data=await response.json();if(!response.ok)throw new Error(data.error||"Health check failed.");badge.textContent=data.configured?"Provider configured":"Setup incomplete";badge.className="pill "+(data.configured?"ok":"warn");show("healthMessage",(data.message||"Backend responding.")+" SMS: "+(data.smsConfigured?"configured":"not configured")+". Voice: "+(data.voiceConfigured?"configured":"not configured")+".","");}catch(e){badge.textContent="Unavailable";badge.className="pill warn";show("healthMessage",e.message,"error");}});
+ $("smsTab").addEventListener("click",()=>{ $("smsPanel").hidden=false;$("callPanel").hidden=true;$("smsTab").classList.add("active");$("callTab").classList.remove("active");$("smsTab").setAttribute("aria-selected","true");$("callTab").setAttribute("aria-selected","false");});
+ $("callTab").addEventListener("click",()=>{ $("smsPanel").hidden=true;$("callPanel").hidden=false;$("callTab").classList.add("active");$("smsTab").classList.remove("active");$("callTab").setAttribute("aria-selected","true");$("smsTab").setAttribute("aria-selected","false");});
+ $("smsBody").addEventListener("input",()=>{$("smsCount").textContent=$("smsBody").value.length+" / 1500 characters";});
+ $("sendSms").addEventListener("click",async()=>{clear("smsResult");const to=$("smsTo").value.trim(),body=$("smsBody").value.trim();if(!validNumber(to))return show("smsResult","Enter a valid international number in E.164 format, such as +919876543210.","error");if(!body)return show("smsResult","Enter a message before sending.","error");if(!$("smsConsent").checked)return show("smsResult","Confirm recipient consent before sending.","error");setBusy("sendSms",true,"Sending…");try{const data=await request("/api/sms",{method:"POST",body:JSON.stringify({to,body,consent:true})});state.lastSid=data.sid;state.lastKind="sms";$("trackSid").value=data.sid||"";show("smsResult","Accepted by Twilio. Status: "+(data.status||"queued")+". SID: "+data.sid+". "+(data.note||"Delivery is not yet confirmed."),"success");}catch(e){show("smsResult",e.message,"error");}finally{setBusy("sendSms",false,"Send SMS");}});
+ $("placeCall").addEventListener("click",async()=>{clear("callResult");const to=$("callTo").value.trim();if(!validNumber(to))return show("callResult","Enter a valid international number in E.164 format, such as +919876543210.","error");if(!$("callConsent").checked)return show("callResult","Confirm that you are authorized to call this recipient.","error");setBusy("placeCall",true,"Starting call…");try{const data=await request("/api/call",{method:"POST",body:JSON.stringify({to,consent:true})});state.lastSid=data.sid;state.lastKind="call";$("trackSid").value=data.sid||"";show("callResult","Call request accepted by Twilio. Status: "+(data.status||"queued")+". SID: "+data.sid+". "+(data.note||"The recipient has not necessarily answered."),"success");}catch(e){show("callResult",e.message,"error");}finally{setBusy("placeCall",false,"Place voice call");}});
+ async function track(kind){clear("trackResult");const sid=$("trackSid").value.trim();const pattern=kind==="sms"?/^(SM|MM)[0-9a-fA-F]{32}$/:/^CA[0-9a-fA-F]{32}$/;if(!pattern.test(sid))return show("trackResult",kind==="sms"?"Enter a valid SMS SID beginning SM or MM.":"Enter a valid call SID beginning CA.","error");try{const data=await request("/api/status",{method:"POST",body:JSON.stringify({sid,kind})});const extras=kind==="sms"?" · To: "+(data.to||"—")+(data.errorCode?" · Error "+data.errorCode:""):" · Duration: "+(data.duration||"0")+" sec · To: "+(data.to||"—");show("trackResult",kind.toUpperCase()+" status: "+(data.status||"unknown")+extras+(data.errorMessage?" · "+data.errorMessage:""),"success");}catch(e){show("trackResult",e.message,"error");}}
+ $("trackSms").addEventListener("click",()=>track("sms"));$("trackCall").addEventListener("click",()=>track("call"));
+ const savedBase=sessionStorage.getItem("notifnix.base");if(savedBase)$("apiBase").value=savedBase;
+ $("apiBase").addEventListener("change",()=>{try{sessionStorage.setItem("notifnix.base",baseUrl())}catch{}});
+ $("checkHealth").click();
+})();
+</script></body></html>
