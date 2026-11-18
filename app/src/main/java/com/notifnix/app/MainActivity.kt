@@ -172,27 +172,36 @@ class MainActivity : FragmentActivity() {
         }, initial.get(Calendar.YEAR), initial.get(Calendar.MONTH), initial.get(Calendar.DAY_OF_MONTH)).show()
     }
 
+    private fun normalizeInternationalNumber(input: String): String? {
+        val trimmed = input.trim()
+        if (trimmed.isBlank()) return null
+        val withPlus = if (trimmed.startsWith("00")) "+" + trimmed.drop(2) else trimmed
+        val normalized = withPlus.filter { it.isDigit() || it == '+' }
+        // E.164: leading +, non-zero country calling code, and 8–15 digits total.
+        return normalized.takeIf { Regex("^\\+[1-9][0-9]{7,14}$").matches(it) }
+    }
+
     fun openDialer(receiverNumber: String) {
-        val cleaned = receiverNumber.trim()
-        if (cleaned.isBlank()) {
-            Toast.makeText(this, "Enter a receiver phone number", Toast.LENGTH_SHORT).show()
+        val international = normalizeInternationalNumber(receiverNumber)
+        if (international == null) {
+            Toast.makeText(this, "Enter a valid international number, e.g. +919876543210", Toast.LENGTH_LONG).show()
             return
         }
         runCatching {
-            startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:" + Uri.encode(cleaned))))
+            startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:" + Uri.encode(international))))
         }.onFailure {
             Toast.makeText(this, "No dialer app is available", Toast.LENGTH_LONG).show()
         }
     }
 
     fun composeRealSms(receiverNumber: String, body: String) {
-        val cleaned = receiverNumber.trim()
-        if (cleaned.isBlank() || body.isBlank()) {
-            Toast.makeText(this, "Enter receiver number and message", Toast.LENGTH_SHORT).show()
+        val international = normalizeInternationalNumber(receiverNumber)
+        if (international == null || body.isBlank()) {
+            Toast.makeText(this, "Enter a valid +country-code number and message", Toast.LENGTH_LONG).show()
             return
         }
         runCatching {
-            val intent = Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:" + Uri.encode(cleaned))).apply {
+            val intent = Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:" + Uri.encode(international))).apply {
                 putExtra("sms_body", body)
             }
             startActivity(intent)
@@ -368,19 +377,19 @@ private fun NotifnixApp(context: MainActivity, database: ScenarioDatabase) {
                     0 -> {
                         SectionTitle("Incoming call studio", "Preview a caller screen without placing a real call.")
                         Field("Caller name", caller) { caller = it }
-                        Field("Phone number", number) { number = it }
+                        Field("International receiver (+country code)", number) { number = it }
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             Button(onClick = { showCallPreview = true; save("CALL", caller, number) }, modifier = Modifier.weight(1f)) { Icon(Icons.Default.Call, null); Spacer(Modifier.width(6.dp)); Text("Save & preview") }
                             OutlinedButton(onClick = { context.openDialer(number) }, modifier = Modifier.weight(1f)) { Icon(Icons.Default.Call, null); Spacer(Modifier.width(4.dp)); Text("Open dialer") }
                         }
-                        Text("Real call test: opens your phone dialer with the receiver number. Review and tap Call yourself. Caller ID is provided by your SIM/network; it cannot be changed here.", style = MaterialTheme.typography.bodySmall, color = Color(0xFF737B8E))
+                        Text("Use E.164 format: +country code followed by the number (for example, +919876543210). Your dialer places the call through your carrier; international calling must be enabled and may cost extra. Your carrier controls caller ID.", style = MaterialTheme.typography.bodySmall, color = Color(0xFF737B8E))
                         if (showCallPreview) { Spacer(Modifier.height(14.dp)); CallPreview(caller, number) { showCallPreview = false } }
                     }
                     1 -> {
                         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
                         SectionTitle("Simulated SMS studio", "Create test messages in a private Notifnix inbox. These never enter your phone's real SMS app.")
                         Field("Sender name / label", messageFrom) { messageFrom = it }
-                        Field("Receiver phone number", smsNumber) { smsNumber = it }
+                        Field("International receiver (+country code)", smsNumber) { smsNumber = it }
                         Field("Message text", messageBody) { messageBody = it }
                         Text("Destination folder", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
                         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -408,7 +417,7 @@ private fun NotifnixApp(context: MainActivity, database: ScenarioDatabase) {
                         Button(onClick = { context.composeRealSms(smsNumber, messageBody) }, modifier = Modifier.fillMaxWidth()) {
                             Icon(Icons.Default.Chat, null); Spacer(Modifier.width(8.dp)); Text("Open SMS app to send")
                         }
-                        Text("Real SMS test: opens your default SMS app with the receiver and message filled in. Confirm Send there. Sender is the SIM used by that app, not the sample sender label.", style = MaterialTheme.typography.bodySmall, color = Color(0xFF737B8E))
+                        Text("Use E.164 format: +country code followed by the number. Your SMS app opens with the destination and message; confirm Send there. International SMS availability and charges depend on your carrier. The sample sender label does not change your real sender number.", style = MaterialTheme.typography.bodySmall, color = Color(0xFF737B8E))
                         Button(
                             onClick = {
                                 if (messageFrom.isBlank() || smsNumber.isBlank() || messageBody.isBlank()) {
