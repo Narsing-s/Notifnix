@@ -66,3 +66,8 @@ Redeploy after setting the variables. Open `https://YOUR-VERCEL-DOMAIN/api/healt
 The app sends explicit consent flags with every provider request. Use the cloud-call button only for recipients you are authorized to call, and the cloud-SMS button only when the recipient has agreed to receive the message. Twilio may require verified destination numbers on trial accounts, enabled destination-country geo permissions, approved sender registration, and sufficient account balance. International rates and country-specific restrictions apply. Twilio's API acceptance status is not proof that a call connected or an SMS was delivered; check the provider console/status callbacks for final outcomes. Do not use this feature for unsolicited or bulk messaging.
 
 This integration does not spoof caller ID. The voice caller ID must be a Twilio number or an outgoing caller ID verified on your Twilio account. It does not include a free global telecom service; provider usage can be charged.
+
+
+### Provider status checks
+
+After a cloud SMS or call is accepted, the matching Studio screen shows a status refresh action. It queries Twilio using the returned provider SID. SMS states such as queued, sent, delivered, undelivered, or failed and call states such as queued, ringing, in-progress, completed, busy, or no-answer are provider-reported; they may change as carrier routing progresses. A completed call means the call ended, not necessarily that a person answered. Status availability and final delivery depend on Twilio and destination carriers.
