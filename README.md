@@ -71,3 +71,15 @@ This integration does not spoof caller ID. The voice caller ID must be a Twilio 
 ### Provider status checks
 
 After a cloud SMS or call is accepted, the matching Studio screen shows a status refresh action. It queries Twilio using the returned provider SID. SMS states such as queued, sent, delivered, undelivered, or failed and call states such as queued, ringing, in-progress, completed, busy, or no-answer are provider-reported; they may change as carrier routing progresses. A completed call means the call ended, not necessarily that a person answered. Status availability and final delivery depend on Twilio and destination carriers.
+
+
+## Notifnix web console (Vercel)
+
+The repository root includes a responsive web console for **Messages**, **Call Studio**, and **Notifications**. Deploy the repository root to Vercel; the static page and `/api/*` Node.js functions are served by the same project.
+
+- **Messages and Call Studio:** use the protected Twilio endpoints. Enter the Vercel backend URL and the private `NOTIFNIX_API_TOKEN` in the browser console. The token is not embedded in the page or stored in local storage; it remains in the current page session. Do not share it with other users.
+- **Notifications:** browser notifications are local to the current browser/device. Recent local notification history is stored in that browser's local storage and can be cleared from the console.
+- **Install/offline:** the web console includes a web app manifest, app icon and service worker for an installable cached app shell. API requests are never cached.
+- **Remote push:** push notifications to other phones are not enabled by the browser demo. They require a Firebase project, FCM web push credentials, registered device tokens, and authenticated server-side delivery. Android local notifications remain available in the Android app.
+
+The public web page is an owner-operated console, not a multi-user product. A shared API token should not be distributed to visitors. For public customer use, add individual sign-in, per-user authorization, quotas, abuse protection and audit logging before enabling provider actions.
