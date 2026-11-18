@@ -325,6 +325,9 @@ private fun NotifnixApp(context: MainActivity, database: ScenarioDatabase) {
     var cloudToken by remember { mutableStateOf("") }
     var cloudConsent by remember { mutableStateOf(false) }
     var cloudBusy by remember { mutableStateOf(false) }
+    var lastCloudSid by remember { mutableStateOf("") }
+    var lastCloudKind by remember { mutableStateOf("") }
+    var cloudStatus by remember { mutableStateOf("") }
     LifecycleEventEffect(Lifecycle.Event.ON_STOP) { if (hasPin) { unlocked = false; pinInput = "" } }
     var editingId by remember { mutableStateOf<String?>(null) }
     val tabs = listOf("Call", "Messages", "Alerts", "Library", "Schedule", "Insights", "Settings")
@@ -421,11 +424,28 @@ private fun NotifnixApp(context: MainActivity, database: ScenarioDatabase) {
                             scope.launch {
                                 cloudBusy = true
                                 runCatching { notifnixCloudRequest(cloudUrl, cloudToken, "/api/call", JSONObject().put("to", number.trim()).put("consent", true)) }
-                                    .onSuccess { snackbar = "Call accepted by provider: " + it.optString("sid") + " · " + it.optString("status") }
+                                    .onSuccess {
+                                        lastCloudSid = it.optString("sid")
+                                        lastCloudKind = "call"
+                                        cloudStatus = "Accepted · " + it.optString("status")
+                                        snackbar = "Call accepted by provider: " + lastCloudSid
+                                    }
                                     .onFailure { snackbar = "Cloud call failed: " + it.message }
                                 cloudBusy = false
                             }
                         }, modifier = Modifier.fillMaxWidth()) { Text(if (cloudBusy) "Requesting…" else "Place global call via Notifnix Cloud") }
+                        if (lastCloudKind == "call" && lastCloudSid.isNotBlank()) {
+                            OutlinedButton(enabled = !cloudBusy, onClick = {
+                                scope.launch {
+                                    cloudBusy = true
+                                    runCatching { notifnixCloudRequest(cloudUrl, cloudToken, "/api/status", JSONObject().put("sid", lastCloudSid).put("kind", "call")) }
+                                        .onSuccess { cloudStatus = it.optString("status", "Unknown") + (if (it.optString("duration").isNotBlank()) " · ${it.optString("duration")} sec" else "") }
+                                        .onFailure { cloudStatus = "Status lookup failed: " + it.message }
+                                    cloudBusy = false
+                                }
+                            }, modifier = Modifier.fillMaxWidth()) { Text("Refresh call status") }
+                            Text("Provider status: $cloudStatus", style = MaterialTheme.typography.bodySmall)
+                        }
                         if (showCallPreview) { Spacer(Modifier.height(14.dp)); CallPreview(caller, number) { showCallPreview = false } }
                     }
                     1 -> {
@@ -466,11 +486,28 @@ private fun NotifnixApp(context: MainActivity, database: ScenarioDatabase) {
                             scope.launch {
                                 cloudBusy = true
                                 runCatching { notifnixCloudRequest(cloudUrl, cloudToken, "/api/sms", JSONObject().put("to", smsNumber.trim()).put("body", messageBody.trim()).put("consent", true)) }
-                                    .onSuccess { snackbar = "SMS accepted by provider: " + it.optString("sid") + " · " + it.optString("status") }
+                                    .onSuccess {
+                                        lastCloudSid = it.optString("sid")
+                                        lastCloudKind = "sms"
+                                        cloudStatus = "Accepted · " + it.optString("status")
+                                        snackbar = "SMS accepted by provider: " + lastCloudSid
+                                    }
                                     .onFailure { snackbar = "Cloud SMS failed: " + it.message }
                                 cloudBusy = false
                             }
                         }, modifier = Modifier.fillMaxWidth()) { Text(if (cloudBusy) "Sending…" else "Send global SMS via Notifnix Cloud") }
+                        if (lastCloudKind == "sms" && lastCloudSid.isNotBlank()) {
+                            OutlinedButton(enabled = !cloudBusy, onClick = {
+                                scope.launch {
+                                    cloudBusy = true
+                                    runCatching { notifnixCloudRequest(cloudUrl, cloudToken, "/api/status", JSONObject().put("sid", lastCloudSid).put("kind", "sms")) }
+                                        .onSuccess { cloudStatus = it.optString("status", "Unknown") + (if (it.optString("errorMessage").isNotBlank()) " · " + it.optString("errorMessage") else "") }
+                                        .onFailure { cloudStatus = "Status lookup failed: " + it.message }
+                                    cloudBusy = false
+                                }
+                            }, modifier = Modifier.fillMaxWidth()) { Text("Refresh SMS delivery status") }
+                            Text("Provider status: $cloudStatus", style = MaterialTheme.typography.bodySmall)
+                        }
                         Button(
                             onClick = {
                                 if (messageFrom.isBlank() || smsNumber.isBlank() || messageBody.isBlank()) {
