@@ -14,6 +14,7 @@ Notifnix is an offline-first Android simulator for creating and previewing clear
 - **Scenario Library** — persist scenarios in a Room database; search, edit, favorite, delete, and filter them.
 - **Scheduling** — choose a calendar date and time for a saved simulation notification using WorkManager; Android may defer execution under battery restrictions.
 - **Schedule manager** — view pending and completed scheduled simulations, cancel pending work, or reschedule from the original saved scenario. Scheduling a scenario again replaces its previous pending schedule.
+- **Insights dashboard** — local counts for saved scenarios, simulated SMS folders, scheduled work states, scenario-type breakdowns, and recent activity. All metrics are calculated on-device and are never uploaded.
 - **Template tools** — add a starter template pack and generate a random notification template.
 - **Backup and restore** — export scenario data as JSON through Android's share sheet, then import a JSON backup to merge scenarios into the local library.
 - **Dark appearance** — switch between light and dark color palettes.
