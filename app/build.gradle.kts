@@ -14,6 +14,14 @@ android {
         versionCode = 2
         versionName = "1.1.0"
     }
+    // Keep Java, Kotlin, and KSP on the same bytecode target.
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+    kotlinOptions {
+        jvmTarget = "17"
+    }
     signingConfigs {
         create("release") {
             storeFile = file(System.getenv("ANDROID_KEYSTORE_PATH") ?: "release.keystore")
