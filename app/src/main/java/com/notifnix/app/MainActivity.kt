@@ -128,7 +128,6 @@ private fun NotifnixApp(context: MainActivity) {
                 }
             }
         },
-        snackbarHost = { if (snackbar.isNotBlank()) Snackbar { Text(snackbar) } }
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 18.dp)) {
             Spacer(Modifier.height(8.dp))
