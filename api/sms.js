@@ -1,4 +1,4 @@
-const { json, validE164, requirePost, twilioPost } = require("./_lib/twilio");
+const { json, validE164, requirePost, twilioPost } = require("../lib/twilio");
 
 module.exports = async function handler(req, res) {
   if (!requirePost(req, res)) return;
