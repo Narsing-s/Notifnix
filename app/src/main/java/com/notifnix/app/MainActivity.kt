@@ -711,7 +711,7 @@ private fun InsightBar(label: String, count: Int, total: Int) {
             Text(count.toString(), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
         }
         LinearProgressIndicator(
-            progress = { if (total == 0) 0f else (count.toFloat() / total.toFloat()).coerceIn(0f, 1f) },
+            progress = if (total == 0) 0f else (count.toFloat() / total.toFloat()).coerceIn(0f, 1f),
             modifier = Modifier.fillMaxWidth()
         )
     }
