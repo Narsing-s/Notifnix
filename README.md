@@ -2,27 +2,47 @@
 
 **One App. Every Interaction.**
 
-Notifnix is an offline-first Android simulator for creating and previewing clearly labelled test calls, SMS conversations, and app-style notifications. It is intended for UI testing, demos, training, and personal testing.
+Notifnix is an offline-first Android simulator for creating and previewing clearly labelled test calls, SMS-style messages, and app-style notifications.
 
-> **Safety by design:** Notifnix creates local simulations only. It does not place real calls, send SMS messages, impersonate a real service, or write fake messages into the device's system SMS inbox/call history. Every generated item is labelled **SIMULATED**.
+> **Safety by design:** Notifnix creates local simulations only. It does not place real calls, send SMS messages, impersonate a real service, or write fake messages into the device's system SMS inbox or call history. Every saved scenario is labelled **SIMULATED**.
 
-## Planned modules
+## Current MVP
 
-- **Call Studio** — create an incoming-call scenario with caller name, number, avatar initials, ringtone/vibration choice, and optional local schedule.
-- **Message Studio** — build SMS-style conversations, choose sender and message text, and preview a realistic but clearly marked conversation.
-- **Notification Studio** — create local test notifications with app label, title, body, icon initials, and channel.
-- **Scenario Library** — save, edit, duplicate, and delete reusable scenarios locally.
-- **History** — review and clear generated simulations.
-- **Privacy** — offline-first storage; no account, analytics, or remote API required.
+- **Call Studio** — enter a caller name and number, then preview a simulated incoming-call screen inside the app.
+- **Message Studio** — compose and preview an SMS-style sample message.
+- **Notification Studio** — create a local Android test notification.
+- **Scenario Library** — save and delete scenarios locally on the device.
+- **Permission-aware notifications** — requests Android 13+ notification permission when a test notification is requested.
+- **Offline-first** — no account, analytics, backend, or API key required.
 
-## Android implementation
+## Technology
 
-The project is being built with Kotlin, Jetpack Compose, Material 3, and Android's local notification APIs. Local data is stored on-device. Notification permission is requested only when the user chooses to test a notification. Full-screen incoming-call style experiences are subject to Android version, notification, and full-screen-intent restrictions; the app must not bypass those platform controls.
+- Kotlin
+- Jetpack Compose + Material 3
+- Android notification channels and AndroidX notification compatibility
+- SharedPreferences for local scenario storage
+- Minimum Android version: 8.0 (API 26)
+- Compile/target SDK: 35
+- JDK 17 recommended
 
-## Build
+## Open and run
 
-Open the project in Android Studio (JDK 17 recommended), allow Gradle sync, then run the `app` configuration on an Android device or emulator. Minimum SDK: Android 8.0 (API 26). Target SDK is kept current with the Android Gradle Plugin configuration.
+1. Clone this repository.
+2. Open the project root in Android Studio.
+3. Allow Gradle sync to complete.
+4. Run the app configuration on an Android device or emulator.
+5. To test notifications on Android 13+, grant the notification permission when prompted.
 
-## Project status
+The repository currently contains the Android source and Gradle project configuration. A generated Gradle wrapper and a verified APK/release build have not yet been added.
 
-Initial repository setup. Features will be delivered incrementally and verified with Android builds before release.
+## Planned next
+
+- Scheduled scenarios and a scenario editor
+- More caller/message/notification templates
+- Configurable notification app labels and categories
+- Optional ringtone and vibration preview controls
+- Export/import of scenario presets
+
+## Privacy and platform limits
+
+Notifnix intentionally avoids SMS, call-log, contacts, and default-dialer permissions. Android restricts full-screen intents and telecom integration; this MVP previews calls inside the app instead of pretending to place a real phone call or bypassing system restrictions.
